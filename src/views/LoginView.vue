@@ -14,7 +14,6 @@ const themes = [
 
 const account = ref('')
 const password = ref('')
-const remember = ref(true)
 
 const highlights = [
   { title: '家庭共享', desc: '给家人分配任务、同步进度，减少沟通成本。' },
@@ -86,11 +85,7 @@ const login = () => {
             <span>密码</span>
             <input v-model="password" type="password" placeholder="请输入密码" />
           </label>
-          <div class="row">
-            <label class="remember">
-              <input v-model="remember" type="checkbox" />
-              记住我
-            </label>
+          <div class="row row-right">
             <a class="link" href="#">忘记密码？</a>
           </div>
           <button class="primary primary-btn" type="submit">登录</button>
