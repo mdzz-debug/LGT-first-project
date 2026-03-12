@@ -244,101 +244,103 @@ const logout = () => {
     </header>
 
     <main class="dashboard">
-      <section class="panel glass overview">
-        <div class="overview-header">
-          <div>
-            <p class="kicker">今日概览</p>
-            <h1>早安，罗董</h1>
-            <p class="muted">聚焦关键任务，清晰掌控节奏与优先级。</p>
-          </div>
-          <div class="overview-actions">
-            <button class="primary" @click="openCreate">新建任务</button>
-            <button class="ghost">查看周报</button>
-          </div>
-        </div>
-
-        <div class="overview-grid">
-          <div class="overview-card">
+      <div class="main-column">
+        <section class="panel glass overview">
+          <div class="overview-header">
             <div>
-              <p class="muted">今日完成度</p>
-              <h2>{{ completion }}%</h2>
+              <p class="kicker">今日概览</p>
+              <h1>早安，罗董</h1>
+              <p class="muted">聚焦关键任务，清晰掌控节奏与优先级。</p>
             </div>
-            <div class="progress ring">
-              <div class="bar" :style="{ width: completion + '%' }"></div>
+            <div class="overview-actions">
+              <button class="primary" @click="openCreate">新建任务</button>
+              <button class="ghost">查看周报</button>
             </div>
           </div>
-          <div class="overview-card">
-            <p class="muted">专注时长</p>
-            <h2>{{ focusMinutes }} 分钟</h2>
-            <span class="tag">番茄节奏</span>
-          </div>
-          <div class="overview-card">
-            <p class="muted">待办提醒</p>
-            <h2>{{ tasks.length - completed }} 项</h2>
-            <span class="tag">优先处理 P1</span>
-          </div>
-          <div class="overview-card">
-            <p class="muted">团队/家庭</p>
-            <h2>4 人</h2>
-            <span class="tag">协作中</span>
-          </div>
-        </div>
-      </section>
 
-      <section class="panel glass task-board">
-        <div class="section-title">
-          <h3>今日任务</h3>
-          <div class="task-tools">
-            <div class="search">
-              <Icon icon="mdi:magnify" />
-              <input v-model="query" placeholder="搜索任务" />
-            </div>
-            <select v-model="statusFilter">
-              <option value="all">全部</option>
-              <option value="todo">待办</option>
-              <option value="done">已完成</option>
-            </select>
-            <select v-model="priorityFilter">
-              <option value="all">优先级</option>
-              <option v-for="item in priorities" :key="item" :value="item">
-                {{ item }}
-              </option>
-            </select>
-            <button class="ghost" @click="toggleSelectAll">
-              {{ allSelected ? '取消全选' : '全选' }}
-            </button>
-            <button class="ghost" :disabled="!selectedCount" @click="bulkComplete">批量完成</button>
-            <button class="ghost danger" :disabled="!selectedCount" @click="bulkDelete">删除</button>
-          </div>
-        </div>
-
-        <ul class="task-list">
-          <li v-for="task in filteredTasks" :key="task.id" class="task-item">
-            <label class="task-check">
-              <input type="checkbox" :checked="selected.includes(task.id)" @change="toggleSelect(task.id)" />
-              <span></span>
-            </label>
-            <div class="task-icon" @click="toggleDone(task)">
-              <Icon :icon="task.icon" />
-            </div>
-            <div class="task-body">
-              <div class="task-title" :class="task.done && 'done'">{{ task.title }}</div>
-              <div class="task-meta">
-                <span class="tag">{{ task.category }}</span>
-                <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
-                <span class="tag">{{ task.due }}</span>
+          <div class="overview-grid">
+            <div class="overview-card">
+              <div>
+                <p class="muted">今日完成度</p>
+                <h2>{{ completion }}%</h2>
+              </div>
+              <div class="progress ring">
+                <div class="bar" :style="{ width: completion + '%' }"></div>
               </div>
             </div>
-            <div class="task-actions">
-              <span class="task-status" :class="task.done && 'done'">
-                {{ task.done ? '已完成' : '进行中' }}
-              </span>
-              <button class="ghost small" @click="openEdit(task)">编辑</button>
-              <button class="ghost danger" @click="removeTask(task.id)">删除</button>
+            <div class="overview-card">
+              <p class="muted">专注时长</p>
+              <h2>{{ focusMinutes }} 分钟</h2>
+              <span class="tag">番茄节奏</span>
             </div>
-          </li>
-        </ul>
-      </section>
+            <div class="overview-card">
+              <p class="muted">待办提醒</p>
+              <h2>{{ tasks.length - completed }} 项</h2>
+              <span class="tag">优先处理 P1</span>
+            </div>
+            <div class="overview-card">
+              <p class="muted">团队/家庭</p>
+              <h2>4 人</h2>
+              <span class="tag">协作中</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel glass task-board">
+          <div class="section-title">
+            <h3>今日任务</h3>
+            <div class="task-tools">
+              <div class="search">
+                <Icon icon="mdi:magnify" />
+                <input v-model="query" placeholder="搜索任务" />
+              </div>
+              <select v-model="statusFilter">
+                <option value="all">全部</option>
+                <option value="todo">待办</option>
+                <option value="done">已完成</option>
+              </select>
+              <select v-model="priorityFilter">
+                <option value="all">优先级</option>
+                <option v-for="item in priorities" :key="item" :value="item">
+                  {{ item }}
+                </option>
+              </select>
+              <button class="ghost" @click="toggleSelectAll">
+                {{ allSelected ? '取消全选' : '全选' }}
+              </button>
+              <button class="ghost" :disabled="!selectedCount" @click="bulkComplete">批量完成</button>
+              <button class="ghost danger" :disabled="!selectedCount" @click="bulkDelete">删除</button>
+            </div>
+          </div>
+
+          <ul class="task-list">
+            <li v-for="task in filteredTasks" :key="task.id" class="task-item">
+              <label class="task-check">
+                <input type="checkbox" :checked="selected.includes(task.id)" @change="toggleSelect(task.id)" />
+                <span></span>
+              </label>
+              <div class="task-icon" @click="toggleDone(task)">
+                <Icon :icon="task.icon" />
+              </div>
+              <div class="task-body">
+                <div class="task-title" :class="task.done && 'done'">{{ task.title }}</div>
+                <div class="task-meta">
+                  <span class="tag">{{ task.category }}</span>
+                  <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
+                  <span class="tag">{{ task.due }}</span>
+                </div>
+              </div>
+              <div class="task-actions">
+                <span class="task-status" :class="task.done && 'done'">
+                  {{ task.done ? '已完成' : '进行中' }}
+                </span>
+                <button class="ghost small" @click="openEdit(task)">编辑</button>
+                <button class="ghost danger" @click="removeTask(task.id)">删除</button>
+              </div>
+            </li>
+          </ul>
+        </section>
+      </div>
 
       <aside class="side">
         <section class="panel glass">
