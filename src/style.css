@@ -16,7 +16,7 @@
   --accent: #8b5cf6;
   --border: rgba(15, 23, 42, 0.12);
   --glass: rgba(255, 255, 255, 0.7);
-  --glass-strong: rgba(255, 255, 255, 0.85);
+  --glass-strong: rgba(255, 255, 255, 0.95);
   --surface: rgba(255, 255, 255, 0.6);
   --page-bg:
     radial-gradient(1200px 700px at 12% 12%, color-mix(in srgb, var(--primary) 20%, transparent), transparent 60%),
@@ -34,7 +34,7 @@
   --accent: #a78bfa;
   --border: rgba(255, 255, 255, 0.2);
   --glass: rgba(255, 255, 255, 0.08);
-  --glass-strong: rgba(255, 255, 255, 0.12);
+  --glass-strong: rgba(255, 255, 255, 0.2);
   --surface: rgba(255, 255, 255, 0.05);
   --page-bg:
     radial-gradient(1200px 700px at 12% 12%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 60%),
@@ -52,7 +52,7 @@
   --accent: #f43f5e;
   --border: rgba(124, 63, 43, 0.2);
   --glass: rgba(255, 247, 237, 0.75);
-  --glass-strong: rgba(255, 247, 237, 0.9);
+  --glass-strong: rgba(255, 247, 237, 0.95);
   --surface: rgba(255, 255, 255, 0.55);
   --page-bg:
     radial-gradient(1200px 700px at 12% 12%, color-mix(in srgb, var(--primary) 20%, transparent), transparent 60%),
@@ -194,6 +194,16 @@ body {
 
 .form .el-input__inner {
   color: var(--text);
+}
+
+.form .el-input__inner:-webkit-autofill,
+.form .el-input__inner:-webkit-autofill:hover,
+.form .el-input__inner:-webkit-autofill:focus,
+.form .el-input__inner:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--text);
+  transition: background-color 5000s ease-in-out 0s;
+  box-shadow: 0 0 0 1000px color-mix(in srgb, var(--glass-strong) 65%, transparent) inset;
 }
 
 .row {

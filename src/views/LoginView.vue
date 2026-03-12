@@ -88,7 +88,7 @@ const login = () => {
             <el-checkbox v-model="remember">记住我</el-checkbox>
             <a class="link" href="#">忘记密码？</a>
           </div>
-          <el-button type="primary" class="primary-btn" @click="login">登录</el-button>
+          <el-button class="primary-btn" @click="login">登录</el-button>
         </el-form>
 
         <p class="footnote">
