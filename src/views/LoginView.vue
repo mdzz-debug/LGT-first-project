@@ -11,6 +11,17 @@ const themes = [
   { id: 'warm', label: '暖色' }
 ] as const
 
+const highlights = [
+  { title: '家庭共享', desc: '给家人分配任务、同步进度，减少沟通成本。' },
+  { title: '番茄节奏', desc: '20-25 分钟深度专注，自动生成今日节奏回顾。' },
+  { title: 'AI 观察', desc: '根据完成度给出优先级与动能建议。' },
+  { title: '日历安排', desc: '一屏掌控日程，拖拽安排更直观。' },
+  { title: '习惯追踪', desc: '长期打卡可视化，趋势一目了然。' },
+  { title: '家庭看板', desc: '多成员协作，任务清晰可见。' }
+]
+
+const highlightLoop = [...highlights, ...highlights]
+
 const login = () => {
   localStorage.setItem('pulse.token', 'demo-token')
   router.push('/dashboard')
@@ -45,18 +56,12 @@ const login = () => {
         <h1>专为家庭 & 小团队设计的轻量协作</h1>
         <p>PulseList 把任务、习惯、专注节奏融在一个界面，支持多主题与成员共享。</p>
 
-        <div class="highlight-grid">
-          <div class="highlight">
-            <h3>家庭共享</h3>
-            <p>给家人分配任务、同步进度，减少沟通成本。</p>
-          </div>
-          <div class="highlight">
-            <h3>番茄节奏</h3>
-            <p>20-25 分钟深度专注，自动生成今日节奏回顾。</p>
-          </div>
-          <div class="highlight">
-            <h3>AI 观察</h3>
-            <p>根据完成度给出优先级与动能建议。</p>
+        <div class="highlight-viewport">
+          <div class="highlight-track">
+            <div v-for="(item, idx) in highlightLoop" :key="item.title + idx" class="highlight">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.desc }}</p>
+            </div>
           </div>
         </div>
       </section>
@@ -75,7 +80,7 @@ const login = () => {
             <input type="password" placeholder="请输入密码" />
           </label>
           <div class="row">
-            <label class="checkbox">
+            <label class="remember">
               <input type="checkbox" checked />
               记住我
             </label>
