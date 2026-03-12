@@ -17,7 +17,9 @@ const highlights = [
   { title: 'AI 观察', desc: '根据完成度给出优先级与动能建议。' },
   { title: '日历安排', desc: '一屏掌控日程，拖拽安排更直观。' },
   { title: '习惯追踪', desc: '长期打卡可视化，趋势一目了然。' },
-  { title: '家庭看板', desc: '多成员协作，任务清晰可见。' }
+  { title: '家庭看板', desc: '多成员协作，任务清晰可见。' },
+  { title: '每日提醒', desc: '关键事项自动提醒，避免遗忘。' },
+  { title: '专注报告', desc: '统计专注时长，形成效率报告。' }
 ]
 
 const highlightLoop = [...highlights, ...highlights]
