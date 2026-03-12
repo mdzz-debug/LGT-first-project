@@ -475,8 +475,11 @@ select {
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), rgba(255,255,255,0.02));
   border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   position: relative;
   box-shadow: 0 0 60px color-mix(in srgb, var(--primary) 20%, transparent);
   animation: breathe 4s ease-in-out infinite;
@@ -495,14 +498,15 @@ select {
   font-size: 56px;
   font-weight: 700;
   letter-spacing: 2px;
+  line-height: 1;
 }
 
 .pomodoro-meta {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  margin-top: 6px;
+  gap: 2px;
+  margin-top: 2px;
 }
 
 .pomodoro-meta .mode {
