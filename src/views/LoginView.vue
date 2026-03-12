@@ -63,16 +63,16 @@ const login = () => {
 
       <section class="login-card glass">
         <h2>欢迎回来</h2>
-        <p class="muted">使用邮箱登录继续你的节奏。</p>
+        <p class="muted">使用账号登录继续你的节奏。</p>
 
         <form class="form" @submit.prevent="login">
           <label>
-            <span>邮箱</span>
-            <input type="email" placeholder="you@company.com" />
+            <span>账号</span>
+            <input type="text" placeholder="请输入账号" />
           </label>
           <label>
             <span>密码</span>
-            <input type="password" placeholder="••••••••" />
+            <input type="password" placeholder="请输入密码" />
           </label>
           <div class="row">
             <label class="checkbox">
