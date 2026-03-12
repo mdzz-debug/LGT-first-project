@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTheme } from '../composables/useTheme'
 
@@ -10,6 +11,10 @@ const themes = [
   { id: 'dark', label: '暗黑' },
   { id: 'warm', label: '暖色' }
 ] as const
+
+const account = ref('')
+const password = ref('')
+const remember = ref(true)
 
 const highlights = [
   { title: '家庭共享', desc: '给家人分配任务、同步进度，减少沟通成本。' },
@@ -72,24 +77,19 @@ const login = () => {
         <h2>欢迎回来</h2>
         <p class="muted">使用账号登录继续你的节奏。</p>
 
-        <form class="form" @submit.prevent="login">
-          <label>
-            <span>账号</span>
-            <input type="text" placeholder="请输入账号" />
-          </label>
-          <label>
-            <span>密码</span>
-            <input type="password" placeholder="请输入密码" />
-          </label>
+        <el-form class="form" @submit.prevent="login">
+          <el-form-item label="账号">
+            <el-input v-model="account" placeholder="请输入账号" />
+          </el-form-item>
+          <el-form-item label="密码">
+            <el-input v-model="password" type="password" show-password placeholder="请输入密码" />
+          </el-form-item>
           <div class="row">
-            <label class="remember">
-              <input type="checkbox" checked />
-              记住我
-            </label>
+            <el-checkbox v-model="remember">记住我</el-checkbox>
             <a class="link" href="#">忘记密码？</a>
           </div>
-          <button class="primary" type="submit">登录</button>
-        </form>
+          <el-button type="primary" class="primary-btn" @click="login">登录</el-button>
+        </el-form>
 
         <p class="footnote">
           登录即代表你同意 <a class="link" href="#">服务条款</a> 与

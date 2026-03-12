@@ -170,20 +170,30 @@ body {
   margin-top: 8px;
 }
 
-.form label:not(.remember) {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-muted);
+.form .el-form-item {
+  margin-bottom: 12px;
 }
 
-.form input {
+.form .el-form-item__label {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding-bottom: 4px;
+}
+
+.form .el-input__wrapper {
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   background: color-mix(in srgb, var(--glass-strong) 65%, transparent);
+  box-shadow: none;
+}
+
+.form .el-input__wrapper.is-focus {
+  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.form .el-input__inner {
   color: var(--text);
-  padding: 10px 12px;
 }
 
 .row {
@@ -201,52 +211,32 @@ body {
   white-space: nowrap;
 }
 
-.remember {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  font-size: 12px;
+.el-checkbox {
+  --el-checkbox-font-size: 12px;
+}
+
+.el-checkbox__label {
   color: var(--text);
-  white-space: nowrap;
-  line-height: 1;
 }
 
-.remember input {
-  appearance: none;
-  width: 16px;
-  height: 16px;
+.el-checkbox__inner {
   border-radius: 4px;
-  border: 1.5px solid color-mix(in srgb, var(--primary) 70%, transparent);
-  display: grid;
-  place-items: center;
-  margin: 0;
-  position: relative;
+  border-color: color-mix(in srgb, var(--primary) 70%, transparent);
 }
 
-.remember input::after {
-  content: '';
-  width: 6px;
-  height: 10px;
-  border: 2px solid #fff;
-  border-top: 0;
-  border-left: 0;
-  transform: translateY(-1px) rotate(45deg);
-  opacity: 0;
-  display: block;
-}
-
-.remember input:checked {
-  background: var(--primary);
+.el-checkbox__input.is-checked .el-checkbox__inner {
+  background-color: var(--primary);
   border-color: var(--primary);
 }
 
-.remember input:checked::after {
-  opacity: 1;
+.el-checkbox__inner::after {
+  border-width: 2px;
+  top: 2px;
+  left: 5px;
+}
+
+.primary-btn {
+  width: 100%;
 }
 
 .footnote {
