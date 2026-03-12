@@ -77,19 +77,24 @@ const login = () => {
         <h2>欢迎回来</h2>
         <p class="muted">使用账号登录继续你的节奏。</p>
 
-        <el-form class="form" @submit.prevent="login">
-          <el-form-item label="账号">
-            <el-input v-model="account" placeholder="请输入账号" />
-          </el-form-item>
-          <el-form-item label="密码">
-            <el-input v-model="password" type="password" show-password placeholder="请输入密码" />
-          </el-form-item>
+        <form class="form" @submit.prevent="login">
+          <label>
+            <span>账号</span>
+            <input v-model="account" type="text" placeholder="请输入账号" />
+          </label>
+          <label>
+            <span>密码</span>
+            <input v-model="password" type="password" placeholder="请输入密码" />
+          </label>
           <div class="row">
-            <el-checkbox v-model="remember">记住我</el-checkbox>
+            <label class="remember">
+              <input v-model="remember" type="checkbox" />
+              记住我
+            </label>
             <a class="link" href="#">忘记密码？</a>
           </div>
-          <el-button class="primary-btn" @click="login">登录</el-button>
-        </el-form>
+          <button class="primary primary-btn" type="submit">登录</button>
+        </form>
 
         <p class="footnote">
           登录即代表你同意 <a class="link" href="#">服务条款</a> 与

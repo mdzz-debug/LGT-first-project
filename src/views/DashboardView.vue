@@ -116,7 +116,6 @@ const logout = () => {
           </div>
           <div class="overview-actions">
             <button class="primary">新建任务</button>
-            <button class="ghost">邀请成员</button>
           </div>
         </div>
 
