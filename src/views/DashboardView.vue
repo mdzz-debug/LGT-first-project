@@ -107,14 +107,17 @@ const logout = () => {
     </header>
 
     <main class="dashboard">
-      <section class="panel glass">
-        <div class="panel-head">
+      <section class="panel glass overview">
+        <div class="overview-header">
           <div>
             <p class="kicker">今日概览</p>
             <h1>早安，罗董</h1>
             <p class="muted">把任务、习惯、专注节奏放在一处，今天继续稳步推进。</p>
           </div>
-          <button class="primary">新建任务</button>
+          <div class="overview-actions">
+            <button class="primary">新建任务</button>
+            <button class="ghost">邀请成员</button>
+          </div>
         </div>
 
         <div class="stat-grid">
@@ -139,6 +142,32 @@ const logout = () => {
           </div>
         </div>
 
+        <div class="quick-grid">
+          <button class="quick-card">
+            <Icon icon="mdi:calendar-month" />
+            <div>
+              <h4>今日行程</h4>
+              <p class="muted">3 个关键安排</p>
+            </div>
+          </button>
+          <button class="quick-card">
+            <Icon icon="mdi:flash" />
+            <div>
+              <h4>AI 观察</h4>
+              <p class="muted">完成度 25%</p>
+            </div>
+          </button>
+          <button class="quick-card">
+            <Icon icon="mdi:bell-outline" />
+            <div>
+              <h4>提醒中心</h4>
+              <p class="muted">待处理 2 条</p>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel glass task-board">
         <div class="section-title">
           <h3>今日任务</h3>
           <button class="ghost">查看全部</button>
