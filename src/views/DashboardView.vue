@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon, addCollection } from '@iconify/vue'
 import mdi from '@iconify-json/mdi/icons.json'
@@ -23,6 +23,22 @@ type Habit = {
   streak: number
   icon: string
   done: boolean
+}
+
+type PomodoroMode = 'focus' | 'short' | 'long'
+
+type PomodoroSettings = {
+  focusMinutes: number
+  shortBreakMinutes: number
+  longBreakMinutes: number
+  longBreakEvery: number
+}
+
+type PomodoroState = {
+  mode: PomodoroMode
+  status: 'idle' | 'running' | 'paused'
+  secondsLeft: number
+  completedRounds: number
 }
 
 const router = useRouter()
@@ -101,6 +117,158 @@ const form = ref({
   priority: priorities[1],
   due: '',
   icon: 'mdi:checkbox-marked-circle-outline'
+})
+
+const settingsKey = 'pulse.pomodoro.settings'
+const stateKey = 'pulse.pomodoro.state'
+const defaultSettings: PomodoroSettings = {
+  focusMinutes: 30,
+  shortBreakMinutes: 10,
+  longBreakMinutes: 20,
+  longBreakEvery: 4
+}
+
+const loadSettings = (): PomodoroSettings => {
+  const raw = localStorage.getItem(settingsKey)
+  if (!raw) {
+    localStorage.setItem(settingsKey, JSON.stringify(defaultSettings))
+    return defaultSettings
+  }
+  try {
+    return { ...defaultSettings, ...JSON.parse(raw) }
+  } catch {
+    return defaultSettings
+  }
+}
+
+const settings = ref(loadSettings())
+
+const pomodoroOpen = ref(false)
+const pomodoro = ref<PomodoroState>({
+  mode: 'focus',
+  status: 'idle',
+  secondsLeft: settings.value.focusMinutes * 60,
+  completedRounds: 0
+})
+
+let timer: ReturnType<typeof setInterval> | null = null
+
+const persistState = () => {
+  localStorage.setItem(stateKey, JSON.stringify(pomodoro.value))
+  localStorage.setItem(settingsKey, JSON.stringify(settings.value))
+}
+
+const getDuration = (mode: PomodoroMode) => {
+  if (mode === 'focus') return settings.value.focusMinutes
+  if (mode === 'long') return settings.value.longBreakMinutes
+  return settings.value.shortBreakMinutes
+}
+
+const resetPomodoro = () => {
+  pomodoro.value = {
+    mode: 'focus',
+    status: 'idle',
+    secondsLeft: settings.value.focusMinutes * 60,
+    completedRounds: 0
+  }
+  persistState()
+}
+
+const startTimer = () => {
+  if (timer) return
+  timer = setInterval(() => {
+    if (pomodoro.value.secondsLeft > 0) {
+      pomodoro.value.secondsLeft -= 1
+      persistState()
+    } else {
+      handlePhaseEnd()
+    }
+  }, 1000)
+}
+
+const stopTimer = () => {
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
+}
+
+const handlePhaseEnd = () => {
+  stopTimer()
+  if (pomodoro.value.mode === 'focus') {
+    pomodoro.value.completedRounds += 1
+    const isLong = pomodoro.value.completedRounds % settings.value.longBreakEvery === 0
+    pomodoro.value.mode = isLong ? 'long' : 'short'
+  } else {
+    pomodoro.value.mode = 'focus'
+  }
+  pomodoro.value.secondsLeft = getDuration(pomodoro.value.mode) * 60
+  pomodoro.value.status = 'running'
+  startTimer()
+  persistState()
+}
+
+const startPomodoro = () => {
+  if (pomodoro.value.status === 'running') return
+  if (pomodoro.value.secondsLeft <= 0) {
+    pomodoro.value.secondsLeft = getDuration(pomodoro.value.mode) * 60
+  }
+  pomodoro.value.status = 'running'
+  startTimer()
+  persistState()
+}
+
+const pausePomodoro = () => {
+  pomodoro.value.status = 'paused'
+  stopTimer()
+  persistState()
+}
+
+const stopPomodoro = () => {
+  stopTimer()
+  resetPomodoro()
+}
+
+const skipPhase = () => {
+  if (pomodoro.value.mode !== 'focus') {
+    pomodoro.value.mode = 'focus'
+    pomodoro.value.secondsLeft = getDuration('focus') * 60
+    pomodoro.value.status = 'running'
+    startTimer()
+    persistState()
+  }
+}
+
+const openPomodoro = () => {
+  pomodoroOpen.value = true
+  if (pomodoro.value.status === 'idle') {
+    pomodoro.value.secondsLeft = getDuration('focus') * 60
+    persistState()
+  }
+}
+
+const closePomodoro = () => {
+  pomodoroOpen.value = false
+}
+
+const formattedTime = computed(() => {
+  const total = pomodoro.value.secondsLeft
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+})
+
+const modeLabel = computed(() => {
+  if (pomodoro.value.mode === 'focus') return '专注'
+  if (pomodoro.value.mode === 'long') return '长休息'
+  return '短休息'
+})
+
+const roundLabel = computed(() => {
+  const current = pomodoro.value.mode === 'focus'
+    ? pomodoro.value.completedRounds + 1
+    : pomodoro.value.completedRounds
+  return `第 ${current} / ${settings.value.longBreakEvery} 轮`
 })
 
 const filteredTasks = computed(() => {
@@ -214,6 +382,10 @@ const logout = () => {
   localStorage.removeItem('pulse.token')
   router.push('/login')
 }
+
+onUnmounted(() => {
+  stopTimer()
+})
 </script>
 
 <template>
@@ -372,7 +544,7 @@ const logout = () => {
             </div>
             <p class="muted">建议再完成 1 轮 25 分钟。</p>
           </div>
-          <button class="primary">开始番茄</button>
+          <button class="primary" @click="openPomodoro">开始番茄</button>
         </section>
 
         <section class="panel glass">
@@ -425,6 +597,42 @@ const logout = () => {
           <div class="modal-actions">
             <button class="ghost" @click="modalOpen = false">取消</button>
             <button class="primary" @click="saveTask">保存</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="backdrop-fade">
+      <div v-if="pomodoroOpen" class="pomodoro-backdrop" @click.self="closePomodoro">
+        <div class="pomodoro">
+          <div class="pomodoro-head">
+            <div>
+              <p class="kicker">沉浸专注</p>
+              <h2>{{ modeLabel }} · {{ roundLabel }}</h2>
+            </div>
+            <button class="ghost" @click="closePomodoro">退出</button>
+          </div>
+
+          <div class="pomodoro-timer">{{ formattedTime }}</div>
+          <p class="muted">默认 30 分钟 / 10 分钟休息 / 每 4 轮</p>
+
+          <div class="pomodoro-actions">
+            <button class="primary" @click="startPomodoro" v-if="pomodoro.status !== 'running'">开始</button>
+            <button class="ghost" @click="pausePomodoro" v-else>暂停</button>
+            <button class="ghost" @click="stopPomodoro">结束</button>
+            <button class="ghost" @click="skipPhase" v-if="pomodoro.mode !== 'focus'">跳过休息</button>
+          </div>
+
+          <div class="music-box">
+            <div>
+              <h4>音乐接入预留</h4>
+              <p class="muted">后续接入外部播放器 / 白噪音 / 个人歌单</p>
+            </div>
+            <div class="music-controls">
+              <button class="ghost">上一首</button>
+              <button class="ghost">播放</button>
+              <button class="ghost">下一首</button>
+            </div>
           </div>
         </div>
       </div>
