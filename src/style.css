@@ -431,38 +431,83 @@ select {
 .pomodoro-backdrop {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--bg-1) 35%, rgba(15, 23, 42, 0.65));
+  background: radial-gradient(600px 600px at 50% 40%, color-mix(in srgb, var(--primary) 20%, transparent), transparent 65%),
+    color-mix(in srgb, var(--bg-1) 25%, rgba(2, 6, 23, 0.75));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
-  backdrop-filter: blur(8px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(160%);
 }
 
 .pomodoro {
-  width: min(520px, 92vw);
-  background: var(--glass-strong);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 24px;
+  width: min(720px, 92vw);
+  height: min(640px, 82vh);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  backdrop-filter: blur(18px) saturate(150%);
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35);
-}
-
-.pomodoro-head {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: center;
+  gap: 18px;
+  border-radius: 32px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--text);
+  position: relative;
 }
 
-.pomodoro-timer {
-  font-size: 64px;
+.pomodoro-exit {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+}
+
+.pomodoro-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.pomodoro-ring {
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), rgba(255,255,255,0.02));
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  display: grid;
+  place-items: center;
+  position: relative;
+  box-shadow: 0 0 60px color-mix(in srgb, var(--primary) 20%, transparent);
+  animation: breathe 4s ease-in-out infinite;
+}
+
+.pomodoro-ring::after {
+  content: '';
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--primary) 35%, transparent);
+  opacity: 0.6;
+}
+
+.pomodoro-time {
+  font-size: 56px;
   font-weight: 700;
-  text-align: center;
   letter-spacing: 2px;
+}
+
+.pomodoro-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.pomodoro-meta .mode {
+  font-size: 14px;
+  color: var(--text-muted);
 }
 
 .pomodoro-actions {
@@ -473,20 +518,32 @@ select {
 }
 
 .music-box {
-  margin-top: 8px;
-  padding: 14px;
+  margin-top: 10px;
+  padding: 14px 18px;
   border-radius: 16px;
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--glass-strong) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  width: min(560px, 92vw);
 }
 
 .music-controls {
   display: flex;
   gap: 8px;
+}
+
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 50px color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 70px color-mix(in srgb, var(--primary) 28%, transparent);
+  }
 }
 
 .modal {

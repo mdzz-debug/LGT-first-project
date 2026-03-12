@@ -605,16 +605,18 @@ onUnmounted(() => {
     <Transition name="backdrop-fade">
       <div v-if="pomodoroOpen" class="pomodoro-backdrop" @click.self="closePomodoro">
         <div class="pomodoro">
-          <div class="pomodoro-head">
-            <div>
-              <p class="kicker">沉浸专注</p>
-              <h2>{{ modeLabel }} · {{ roundLabel }}</h2>
-            </div>
-            <button class="ghost" @click="closePomodoro">退出</button>
-          </div>
+          <button class="pomodoro-exit ghost" @click="closePomodoro">退出</button>
 
-          <div class="pomodoro-timer">{{ formattedTime }}</div>
-          <p class="muted">默认 30 分钟 / 10 分钟休息 / 每 4 轮</p>
+          <div class="pomodoro-center">
+            <div class="pomodoro-ring">
+              <div class="pomodoro-time">{{ formattedTime }}</div>
+              <div class="pomodoro-meta">
+                <span class="kicker">沉浸专注</span>
+                <span class="mode">{{ modeLabel }} · {{ roundLabel }}</span>
+              </div>
+            </div>
+            <p class="muted">默认 30 分钟 / 10 分钟休息 / 每 4 轮</p>
+          </div>
 
           <div class="pomodoro-actions">
             <button class="primary" @click="startPomodoro" v-if="pomodoro.status !== 'running'">开始</button>
