@@ -412,20 +412,22 @@ select {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: color-mix(in srgb, var(--bg-1) 45%, rgba(15, 23, 42, 0.45));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 50;
+  backdrop-filter: blur(6px) saturate(120%);
 }
 
 .modal {
   width: min(520px, 90vw);
-  background: var(--glass);
+  background: var(--glass-strong);
   border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 20px;
-  backdrop-filter: blur(16px) saturate(140%);
+  border-radius: 22px;
+  padding: 22px;
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.28);
 }
 
 .modal-head {
@@ -865,5 +867,45 @@ select {
   }
   100% {
     transform: translateY(-50%);
+  }
+}
+
+.backdrop-fade-enter-active,
+.backdrop-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.backdrop-fade-enter-from,
+.backdrop-fade-leave-to {
+  opacity: 0;
+}
+
+.backdrop-fade-enter-active .modal {
+  animation: modal-pop 0.22s ease;
+}
+
+.backdrop-fade-leave-active .modal {
+  animation: modal-pop-out 0.18s ease;
+}
+
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modal-pop-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
   }
 }

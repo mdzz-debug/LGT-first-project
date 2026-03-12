@@ -391,39 +391,41 @@ const logout = () => {
       </aside>
     </main>
 
-    <div v-if="modalOpen" class="modal-backdrop" @click.self="modalOpen = false">
-      <div class="modal">
-        <div class="modal-head">
-          <h3>{{ editingId ? '编辑任务' : '新建任务' }}</h3>
-          <button class="ghost" @click="modalOpen = false">关闭</button>
-        </div>
-        <div class="modal-body">
-          <label>
-            <span>标题</span>
-            <input v-model="form.title" placeholder="请输入任务标题" />
-          </label>
-          <label>
-            <span>分类</span>
-            <select v-model="form.category">
-              <option v-for="item in categories" :key="item">{{ item }}</option>
-            </select>
-          </label>
-          <label>
-            <span>优先级</span>
-            <select v-model="form.priority">
-              <option v-for="item in priorities" :key="item" :value="item">{{ item }}</option>
-            </select>
-          </label>
-          <label>
-            <span>截止</span>
-            <input v-model="form.due" placeholder="例如：今天 18:00" />
-          </label>
-        </div>
-        <div class="modal-actions">
-          <button class="ghost" @click="modalOpen = false">取消</button>
-          <button class="primary" @click="saveTask">保存</button>
+    <Transition name="backdrop-fade">
+      <div v-if="modalOpen" class="modal-backdrop" @click.self="modalOpen = false">
+        <div class="modal">
+          <div class="modal-head">
+            <h3>{{ editingId ? '编辑任务' : '新建任务' }}</h3>
+            <button class="ghost" @click="modalOpen = false">关闭</button>
+          </div>
+          <div class="modal-body">
+            <label>
+              <span>标题</span>
+              <input v-model="form.title" placeholder="请输入任务标题" />
+            </label>
+            <label>
+              <span>分类</span>
+              <select v-model="form.category">
+                <option v-for="item in categories" :key="item">{{ item }}</option>
+              </select>
+            </label>
+            <label>
+              <span>优先级</span>
+              <select v-model="form.priority">
+                <option v-for="item in priorities" :key="item" :value="item">{{ item }}</option>
+              </select>
+            </label>
+            <label>
+              <span>截止</span>
+              <input v-model="form.due" placeholder="例如：今天 18:00" />
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button class="ghost" @click="modalOpen = false">取消</button>
+            <button class="primary" @click="saveTask">保存</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
