@@ -1,252 +1,247 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { Icon, addCollection } from '@iconify/vue'
+import mdi from '@iconify-json/mdi'
 
-type Category = '工作' | '家庭' | '健康' | '学习'
-type Priority = 'P1' | 'P2' | 'P3'
+addCollection(mdi)
+
+type ThemeMode = 'dark' | 'light' | 'warm'
 
 type Task = {
   id: string
   title: string
-  category: Category
-  priority: Priority
+  category: string
+  priority: 'P1' | 'P2' | 'P3'
   due: string
   done: boolean
+  icon: string
 }
 
 type Habit = {
   id: string
   name: string
   streak: number
+  icon: string
   done: boolean
 }
 
-const STORAGE_KEY = 'pulse.tasks'
+const theme = ref<ThemeMode>('light')
 
-const today = new Date().toISOString().slice(0, 10)
+const applyTheme = (value: ThemeMode) => {
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.theme = value
+    document.body.dataset.theme = value
+  }
+}
 
-const seedTasks: Task[] = [
+const themes = [
+  { id: 'light', label: '浅色' },
+  { id: 'dark', label: '暗黑' },
+  { id: 'warm', label: '暖色' }
+] as const
+
+const tasks = ref<Task[]>([
   {
-    id: 't-1',
-    title: '给团队同步本周目标与节奏',
+    id: 't1',
+    title: '梳理下周家庭计划与预算',
+    category: '家庭',
+    priority: 'P1',
+    due: '今天 18:00',
+    done: false,
+    icon: 'mdi:home-heart'
+  },
+  {
+    id: 't2',
+    title: '完成客户需求梳理 & 会议纪要',
     category: '工作',
     priority: 'P1',
-    due: today,
-    done: false
+    due: '今天 20:00',
+    done: true,
+    icon: 'mdi:briefcase-outline'
   },
   {
-    id: 't-2',
-    title: '给家里采购清单补货',
-    category: '家庭',
-    priority: 'P2',
-    due: today,
-    done: true
-  },
-  {
-    id: 't-3',
+    id: 't3',
     title: '30 分钟力量训练',
     category: '健康',
     priority: 'P2',
-    due: today,
-    done: false
+    due: '今晚',
+    done: false,
+    icon: 'mdi:dumbbell'
+  },
+  {
+    id: 't4',
+    title: '读完《高效能人士》第四章',
+    category: '学习',
+    priority: 'P3',
+    due: '明天',
+    done: false,
+    icon: 'mdi:book-open-page-variant'
   }
-]
-
-const loadTasks = () => {
-  const raw = localStorage.getItem(STORAGE_KEY)
-  if (!raw) return seedTasks
-  try {
-    const parsed = JSON.parse(raw) as Task[]
-    return parsed.length ? parsed : seedTasks
-  } catch {
-    return seedTasks
-  }
-}
-
-const tasks = ref<Task[]>(loadTasks())
-const filter = ref<'all' | 'todo' | 'done'>('all')
-
-const newTask = ref({
-  title: '',
-  category: '工作' as Category,
-  priority: 'P2' as Priority,
-  due: today
-})
-
-const habits = ref<Habit[]>([
-  { id: 'h-1', name: '晨间拉伸', streak: 6, done: true },
-  { id: 'h-2', name: '英语 10 分钟', streak: 12, done: false },
-  { id: 'h-3', name: '阅读 20 页', streak: 3, done: false }
 ])
 
-const total = computed(() => tasks.value.length)
-const done = computed(() => tasks.value.filter((t) => t.done).length)
-const pending = computed(() => total.value - done.value)
-const completion = computed(() => (total.value ? Math.round((done.value / total.value) * 100) : 0))
+const habits = ref<Habit[]>([
+  { id: 'h1', name: '晨间拉伸', streak: 8, icon: 'mdi:weather-sunny', done: true },
+  { id: 'h2', name: '英语 15 分钟', streak: 12, icon: 'mdi:translate', done: false },
+  { id: 'h3', name: '阅读 20 页', streak: 5, icon: 'mdi:book-open-variant', done: false }
+])
 
-const filteredTasks = computed(() => {
-  if (filter.value === 'todo') return tasks.value.filter((t) => !t.done)
-  if (filter.value === 'done') return tasks.value.filter((t) => t.done)
-  return tasks.value
-})
+const upcoming = [
+  { time: '15:00', title: '家庭采购清单检查', icon: 'mdi:cart-outline' },
+  { time: '19:30', title: '团队复盘会议', icon: 'mdi:account-group-outline' },
+  { time: '22:00', title: '睡前冥想 10 分钟', icon: 'mdi:meditation' }
+]
 
-const focusMinutes = computed(() => done.value * 25)
-const insight = computed(() => {
-  if (completion.value >= 80) return '今天节奏很稳，继续保持冲刺！'
-  if (completion.value >= 50) return '完成度不错，优先拿下 P1 任务。'
-  return '先做一件最小但最重要的事，建立动能。'
-})
-
-const addTask = () => {
-  if (!newTask.value.title.trim()) return
-  tasks.value.unshift({
-    id: `t-${Date.now()}`,
-    title: newTask.value.title.trim(),
-    category: newTask.value.category,
-    priority: newTask.value.priority,
-    due: newTask.value.due || today,
-    done: false
-  })
-  newTask.value.title = ''
-}
-
-const toggleTask = (task: Task) => {
-  task.done = !task.done
-}
-
-const removeTask = (id: string) => {
-  tasks.value = tasks.value.filter((t) => t.id !== id)
-}
-
-const toggleHabit = (habit: Habit) => {
-  habit.done = !habit.done
-  habit.streak = habit.done ? habit.streak + 1 : Math.max(habit.streak - 1, 0)
-}
-
-watch(
-  tasks,
-  (value) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
-  },
-  { deep: true }
+const completed = computed(() => tasks.value.filter((t) => t.done).length)
+const completion = computed(() =>
+  tasks.value.length ? Math.round((completed.value / tasks.value.length) * 100) : 0
 )
+const focusMinutes = computed(() => completed.value * 25)
+
+onMounted(() => {
+  const saved = localStorage.getItem('pulse.theme') as ThemeMode | null
+  if (saved) theme.value = saved
+  applyTheme(theme.value)
+})
+
+watch(theme, (value) => {
+  localStorage.setItem('pulse.theme', value)
+  applyTheme(value)
+})
 </script>
 
 <template>
-  <div class="app">
-    <header class="hero glass">
-      <div>
-        <span class="badge">Vue 3 + TypeScript</span>
-        <h1>PulseList · 轻量生活协作面板</h1>
-        <p class="subtitle">
-          把任务、习惯、专注节奏聚合在一个界面。更适合家庭/小团队的「轻量现代感」项目范式。
-        </p>
+  <div class="page" :data-theme="theme">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">P</span>
+        <span>PulseList</span>
       </div>
-      <div class="hero-actions">
-        <button class="primary">开启专注</button>
-        <button class="ghost">分享给家人</button>
+      <div class="top-actions">
+        <div class="theme-toggle">
+          <button
+            v-for="item in themes"
+            :key="item.id"
+            class="chip"
+            :class="theme === item.id && 'active'"
+            @click="theme = item.id"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+        <div class="user-pill">
+          <Icon icon="mdi:account" />
+          董事长
+        </div>
       </div>
     </header>
 
-    <section class="grid">
-      <div class="panel glass">
+    <main class="dashboard">
+      <section class="panel glass">
         <div class="panel-head">
-          <h2>今日任务</h2>
-          <div class="filters">
-            <button :class="['chip', filter === 'all' && 'active']" @click="filter = 'all'">全部</button>
-            <button :class="['chip', filter === 'todo' && 'active']" @click="filter = 'todo'">待办</button>
-            <button :class="['chip', filter === 'done' && 'active']" @click="filter = 'done'">完成</button>
+          <div>
+            <p class="kicker">今日概览</p>
+            <h1>早安，董事长</h1>
+            <p class="muted">把任务、习惯、专注节奏放在一处，今天继续稳步推进。</p>
           </div>
+          <button class="primary">新建任务</button>
         </div>
 
-        <div class="stats">
-          <div class="stat">
-            <span>总任务</span>
-            <strong>{{ total }}</strong>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <span>今日任务</span>
+            <strong>{{ tasks.length }}</strong>
           </div>
-          <div class="stat">
+          <div class="stat-card">
             <span>已完成</span>
-            <strong>{{ done }}</strong>
+            <strong>{{ completed }}</strong>
           </div>
-          <div class="stat">
-            <span>待处理</span>
-            <strong>{{ pending }}</strong>
-          </div>
-          <div class="stat wide">
+          <div class="stat-card">
             <span>完成度</span>
             <strong>{{ completion }}%</strong>
             <div class="progress">
               <div class="bar" :style="{ width: completion + '%' }"></div>
             </div>
           </div>
+          <div class="stat-card">
+            <span>专注时长</span>
+            <strong>{{ focusMinutes }} 分钟</strong>
+          </div>
         </div>
 
-        <form class="task-form" @submit.prevent="addTask">
-          <input v-model="newTask.title" placeholder="输入一个关键任务…" />
-          <select v-model="newTask.category">
-            <option>工作</option>
-            <option>家庭</option>
-            <option>健康</option>
-            <option>学习</option>
-          </select>
-          <select v-model="newTask.priority">
-            <option>P1</option>
-            <option>P2</option>
-            <option>P3</option>
-          </select>
-          <input v-model="newTask.due" type="date" />
-          <button class="primary" type="submit">添加</button>
-        </form>
+        <div class="section-title">
+          <h3>今日任务</h3>
+          <button class="ghost">查看全部</button>
+        </div>
 
         <ul class="task-list">
-          <li v-for="task in filteredTasks" :key="task.id" class="task">
-            <button class="check" @click="toggleTask(task)">
-              <span :class="['dot', task.done && 'done']"></span>
-            </button>
-            <div class="task-info">
-              <div class="title" :class="{ done: task.done }">{{ task.title }}</div>
-              <div class="meta">
+          <li v-for="task in tasks" :key="task.id" class="task-item">
+            <div class="task-icon">
+              <Icon :icon="task.icon" />
+            </div>
+            <div class="task-body">
+              <div class="task-title" :class="task.done && 'done'">{{ task.title }}</div>
+              <div class="task-meta">
                 <span class="tag">{{ task.category }}</span>
-                <span class="tag">{{ task.priority }}</span>
+                <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
                 <span class="tag">{{ task.due }}</span>
               </div>
             </div>
-            <button class="ghost" @click="removeTask(task.id)">移除</button>
+            <div class="task-status" :class="task.done && 'done'">
+              {{ task.done ? '已完成' : '进行中' }}
+            </div>
           </li>
         </ul>
-      </div>
+      </section>
 
-      <aside class="panel glass">
-        <h3>习惯与专注</h3>
-
-        <div class="habit-list">
-          <div v-for="habit in habits" :key="habit.id" class="habit">
-            <div>
-              <div class="title">{{ habit.name }}</div>
-              <div class="meta">连续 {{ habit.streak }} 天</div>
-            </div>
-            <button class="chip" :class="habit.done && 'active'" @click="toggleHabit(habit)">
-              {{ habit.done ? '已完成' : '打卡' }}
-            </button>
+      <aside class="side">
+        <section class="panel glass">
+          <div class="section-title">
+            <h3>习惯追踪</h3>
+            <button class="ghost">编辑</button>
           </div>
-        </div>
+          <div class="habit-list">
+            <div v-for="habit in habits" :key="habit.id" class="habit-item">
+              <div class="habit-icon">
+                <Icon :icon="habit.icon" />
+              </div>
+              <div>
+                <div class="habit-title">{{ habit.name }}</div>
+                <div class="muted">连续 {{ habit.streak }} 天</div>
+              </div>
+              <span class="chip" :class="habit.done && 'active'">
+                {{ habit.done ? '已完成' : '打卡' }}
+              </span>
+            </div>
+          </div>
+        </section>
 
-        <div class="focus-card">
+        <section class="panel glass focus">
           <div>
-            <h4>今日专注</h4>
-            <p>已完成 {{ focusMinutes }} 分钟 · 建议再 1 轮 25 分钟</p>
+            <div class="focus-title">
+              <Icon icon="mdi:timer-sand" />
+              今日专注
+            </div>
+            <p class="muted">建议再完成 1 轮 25 分钟。</p>
           </div>
           <button class="primary">开始番茄</button>
-        </div>
+        </section>
 
-        <div class="insight">
-          <h4>AI 观察</h4>
-          <p>{{ insight }}</p>
-        </div>
+        <section class="panel glass">
+          <div class="section-title">
+            <h3>待办安排</h3>
+            <button class="ghost">日历</button>
+          </div>
+          <div class="upcoming-list">
+            <div v-for="item in upcoming" :key="item.title" class="upcoming-item">
+              <div class="upcoming-time">{{ item.time }}</div>
+              <div class="upcoming-title">
+                <Icon :icon="item.icon" />
+                {{ item.title }}
+              </div>
+            </div>
+          </div>
+        </section>
       </aside>
-    </section>
-
-    <footer class="footer">
-      方案关键词：轻量协作、习惯打卡、专注计时、家庭共享、数据本地化。
-    </footer>
+    </main>
   </div>
 </template>
