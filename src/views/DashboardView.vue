@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon, addCollection } from '@iconify/vue'
-import mdi from '@iconify-json/mdi'
+import mdi from '@iconify-json/mdi/icons.json'
 import { useTheme } from '../composables/useTheme'
 
 addCollection(mdi)
