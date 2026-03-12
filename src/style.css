@@ -101,6 +101,81 @@ body {
   gap: 28px;
 }
 
+.auth {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 24px;
+}
+
+.promo {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.login-card {
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.highlight {
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.form input {
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--glass-strong) 65%, transparent);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footnote {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
 .glass {
   background: var(--glass);
   border: 1px solid var(--border);
@@ -421,7 +496,12 @@ body {
 }
 
 @media (max-width: 960px) {
-  .dashboard {
+  .dashboard,
+  .auth {
+    grid-template-columns: 1fr;
+  }
+
+  .highlight-grid {
     grid-template-columns: 1fr;
   }
 
