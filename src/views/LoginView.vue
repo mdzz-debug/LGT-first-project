@@ -35,7 +35,7 @@ const login = () => {
 </script>
 
 <template>
-  <div class="page" :data-theme="theme">
+  <div class="page">
     <header class="topbar">
       <div class="brand">
         <span class="logo">P</span>

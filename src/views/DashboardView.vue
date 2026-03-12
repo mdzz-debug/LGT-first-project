@@ -3,7 +3,7 @@ import { computed, ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon, addCollection } from '@iconify/vue'
 import mdi from '@iconify-json/mdi/icons.json'
-import { useTheme } from '../composables/useTheme'
+import AppHeader from '../components/AppHeader.vue'
 
 addCollection(mdi)
 
@@ -42,13 +42,6 @@ type PomodoroState = {
 }
 
 const router = useRouter()
-const { theme } = useTheme()
-
-const themes = [
-  { id: 'light', label: '浅色' },
-  { id: 'dark', label: '暗黑' },
-  { id: 'warm', label: '暖色' }
-] as const
 
 const categories = ['家庭', '工作', '健康', '学习']
 const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
@@ -389,31 +382,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="page" :data-theme="theme">
-    <header class="topbar">
-      <div class="brand">
-        <span class="logo">P</span>
-        <span>PulseList</span>
-      </div>
-      <div class="top-actions">
-        <div class="theme-toggle">
-          <button
-            v-for="item in themes"
-            :key="item.id"
-            class="chip"
-            :class="theme === item.id && 'active'"
-            @click="theme = item.id"
-          >
-            {{ item.label }}
-          </button>
-        </div>
-        <div class="user-pill">
-          <Icon icon="mdi:account" />
-          罗董
-        </div>
-        <button class="ghost" @click="logout">退出</button>
-      </div>
-    </header>
+  <div class="page">
+    <AppHeader />
 
     <main class="dashboard">
       <div class="main-column">

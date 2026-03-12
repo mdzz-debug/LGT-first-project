@@ -1,11 +1,19 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
+import TasksView from '../views/TasksView.vue'
+import HabitsView from '../views/HabitsView.vue'
+import LedgerView from '../views/LedgerView.vue'
+import StatsView from '../views/StatsView.vue'
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
   { path: '/login', component: LoginView, meta: { guest: true } },
-  { path: '/dashboard', component: DashboardView, meta: { requiresAuth: true } }
+  { path: '/dashboard', component: DashboardView, meta: { requiresAuth: true } },
+  { path: '/tasks', component: TasksView, meta: { requiresAuth: true } },
+  { path: '/habits', component: HabitsView, meta: { requiresAuth: true } },
+  { path: '/ledger', component: LedgerView, meta: { requiresAuth: true } },
+  { path: '/stats', component: StatsView, meta: { requiresAuth: true } }
 ]
 
 const router = createRouter({
