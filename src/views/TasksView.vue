@@ -61,14 +61,18 @@ const tasks = ref<Task[]>([
 const query = ref('')
 const statusFilter = ref<'all' | 'todo' | 'done'>('all')
 const priorityFilter = ref<'all' | Task['priority']>('all')
-const selected = ref<string[]>([])
-
 const modalOpen = ref(false)
 const editingId = ref<string | null>(null)
-const form = ref({
+const form = ref<{
+  title: string
+  category: string
+  priority: Task['priority']
+  due: string
+  icon: string
+}>({
   title: '',
-  category: categories[0],
-  priority: priorities[1],
+  category: categories[0] ?? '家庭',
+  priority: priorities[1] ?? 'P2',
   due: '',
   icon: 'mdi:checkbox-marked-circle-outline'
 })
@@ -90,47 +94,13 @@ const completion = computed(() =>
   tasks.value.length ? Math.round((completed.value / tasks.value.length) * 100) : 0
 )
 const overdue = computed(() => tasks.value.filter((t) => t.due.includes('昨天')).length)
-const selectedCount = computed(() => selected.value.length)
-const allSelected = computed(
-  () => filteredTasks.value.length > 0 && selected.value.length === filteredTasks.value.length
-)
-
-const toggleSelect = (id: string) => {
-  if (selected.value.includes(id)) {
-    selected.value = selected.value.filter((item) => item !== id)
-  } else {
-    selected.value = [...selected.value, id]
-  }
-}
-
-const toggleSelectAll = () => {
-  if (allSelected.value) {
-    selected.value = []
-  } else {
-    selected.value = filteredTasks.value.map((task) => task.id)
-  }
-}
-
-const bulkComplete = () => {
-  const ids = new Set(selected.value)
-  tasks.value = tasks.value.map((task) =>
-    ids.has(task.id) ? { ...task, done: true } : task
-  )
-  selected.value = []
-}
-
-const bulkDelete = () => {
-  const ids = new Set(selected.value)
-  tasks.value = tasks.value.filter((task) => !ids.has(task.id))
-  selected.value = []
-}
 
 const openCreate = () => {
   editingId.value = null
   form.value = {
     title: '',
-    category: categories[0],
-    priority: priorities[1],
+    category: categories[0] ?? '家庭',
+    priority: priorities[1] ?? 'P2',
     due: '',
     icon: 'mdi:checkbox-marked-circle-outline'
   }
@@ -173,7 +143,6 @@ const saveTask = () => {
 
 const removeTask = (id: string) => {
   tasks.value = tasks.value.filter((task) => task.id !== id)
-  selected.value = selected.value.filter((item) => item !== id)
 }
 </script>
 
@@ -183,9 +152,16 @@ const removeTask = (id: string) => {
 
     <main class="content">
       <section class="panel glass">
-        <div class="section-title">
-          <h2>任务管理</h2>
-          <div class="task-tools">
+        <div class="task-board-head">
+          <div>
+            <h2>任务管理</h2>
+            <p class="muted">共 {{ tasks.length }} 项 · 已完成 {{ completed }} · 进行中 {{ tasks.length - completed }}</p>
+          </div>
+          <button class="primary task-pill" @click="openCreate">新建任务</button>
+        </div>
+
+        <div class="task-toolbar">
+          <div class="task-filters">
             <div class="search">
               <Icon icon="mdi:magnify" />
               <input v-model="query" placeholder="搜索任务" />
@@ -201,13 +177,8 @@ const removeTask = (id: string) => {
                 {{ item }}
               </option>
             </select>
-            <button class="ghost" @click="openCreate">新建任务</button>
-            <button class="ghost" @click="toggleSelectAll">
-              {{ allSelected ? '取消全选' : '全选' }}
-            </button>
-            <button class="ghost" :disabled="!selectedCount" @click="bulkComplete">批量完成</button>
-            <button class="ghost danger" :disabled="!selectedCount" @click="bulkDelete">删除</button>
           </div>
+
         </div>
 
         <div class="stat-grid compact">
@@ -219,10 +190,6 @@ const removeTask = (id: string) => {
 
         <ul class="task-list">
           <li v-for="task in filteredTasks" :key="task.id" class="task-item">
-            <label class="task-check">
-              <input type="checkbox" :checked="selected.includes(task.id)" @change="toggleSelect(task.id)" />
-              <span></span>
-            </label>
             <div class="task-icon">
               <Icon :icon="task.icon" />
             </div>
@@ -235,11 +202,11 @@ const removeTask = (id: string) => {
               </div>
             </div>
             <div class="task-actions">
-              <span class="task-status" :class="task.done && 'done'">
+              <span class="task-status task-pill" :class="task.done && 'done'">
                 {{ task.done ? '已完成' : '进行中' }}
               </span>
-              <button class="ghost small" @click="openEdit(task)">编辑</button>
-              <button class="ghost danger" @click="removeTask(task.id)">删除</button>
+              <button class="ghost task-pill" @click="openEdit(task)">编辑</button>
+              <button class="ghost task-pill danger" @click="removeTask(task.id)">删除</button>
             </div>
           </li>
         </ul>
