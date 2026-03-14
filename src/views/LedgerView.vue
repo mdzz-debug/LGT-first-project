@@ -61,7 +61,7 @@ const modalOpen = ref(false)
 const familyOverviewOpen = ref(false)
 
 const { flyToRecycle } = useRecycleFly()
-const familyTab = ref<'expense' | 'income' | 'category'>('expense')
+const familyTab = ref<'expense' | 'income' | 'category'>('category')
 const editingId = ref<string | number | null>(null)
 const form = ref({
   type: 'expense' as LedgerType,
@@ -601,8 +601,10 @@ onMounted(async () => {
                 <div class="family-waffle-legend">
                   <div v-for="item in familyWaffle.legend" :key="item.category" class="family-waffle-item">
                     <span class="dot" :style="{ background: item.color }"></span>
-                    <span class="name">{{ item.category }}</span>
-                    <span class="value">{{ item.percent }}%</span>
+                    <div class="legend-left">
+                      <span class="name">{{ item.category }}</span>
+                      <span class="value">{{ item.percent }}%</span>
+                    </div>
                     <span class="amount">¥ {{ formatAmount(item.total) }}</span>
                   </div>
                 </div>

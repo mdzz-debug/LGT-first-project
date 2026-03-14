@@ -200,8 +200,10 @@ const nextMonth = () => {
       <div class="member-compare-legend">
         <div v-for="item in memberWaffle.legend" :key="item.id" class="member-legend-item">
           <span class="dot" :style="{ background: item.color }"></span>
-          <span class="name">{{ item.name }}</span>
-          <span class="value">{{ item.percent }}%</span>
+          <div class="legend-left">
+            <span class="name">{{ item.name }}</span>
+            <span class="value">{{ item.percent }}%</span>
+          </div>
           <span class="amount">¥ {{ item.total }}</span>
         </div>
       </div>
