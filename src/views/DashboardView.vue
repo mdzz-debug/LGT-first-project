@@ -108,6 +108,8 @@ type UpcomingItem = {
   date: string
   status: UpcomingStatus
   sourceType?: 'task' | 'habit'
+  startAt?: string
+  endAt?: string
 }
 
 const upcoming = ref<UpcomingItem[]>([])
@@ -378,6 +380,21 @@ const fetchHabits = async () => {
   }
 }
 
+const formatTimeRange = (startAt?: string, endAt?: string, time?: string) => {
+  const start = startAt ? startAt.replace('T', ' ') : ''
+  const end = endAt ? endAt.replace('T', ' ') : ''
+  if (start && end) {
+    const sameDay = start.slice(0, 10) === end.slice(0, 10)
+    if (sameDay) {
+      return `${start.slice(11, 16)} - ${end.slice(11, 16)}`
+    }
+    return `${start.slice(5, 16)} ~ ${end.slice(5, 16)}`
+  }
+  if (start) return start.slice(11, 16)
+  if (time) return time
+  return '全天'
+}
+
 const fetchUpcoming = async () => {
   try {
     const events = await apiFetch<any[]>('/calendar/events')
@@ -390,14 +407,19 @@ const fetchUpcoming = async () => {
             ? 'mdi:leaf-circle-outline'
             : item.icon || 'mdi:calendar-check'
 
+      const startAt = item.start_at || item.startAt
+      const endAt = item.end_at || item.endAt
+
       return {
         id: item.id,
-        time: item.time || '全天',
+        time: formatTimeRange(startAt, endAt, item.time),
         title: item.title,
         icon,
         date: item.date,
         status: (item.status || 'todo') as UpcomingStatus,
-        sourceType
+        sourceType,
+        startAt,
+        endAt
       }
     })
   } catch {
@@ -497,8 +519,42 @@ const calendarEvents = computed<CalendarEvent[]>(() =>
     title: item.title,
     time: item.time,
     status: item.status,
-    sourceType: item.sourceType
+    sourceType: item.sourceType,
+    startAt: item.startAt,
+    endAt: item.endAt
   }))
+)
+
+const todayKey = new Date().toISOString().slice(0, 10)
+const getItemRange = (item: UpcomingItem) => {
+  const startDate = (item.startAt || item.date).slice(0, 10)
+  const endDate = (item.endAt || item.startAt || item.date).slice(0, 10)
+  return { startDate, endDate }
+}
+
+const todayItems = computed(() =>
+  upcoming.value.filter((item) => {
+    const { startDate, endDate } = getItemRange(item)
+    return startDate <= todayKey && endDate >= todayKey
+  })
+)
+
+const mustTodayItems = computed(() =>
+  todayItems.value.filter((item) => {
+    const { startDate, endDate } = getItemRange(item)
+    return startDate === todayKey && endDate === todayKey
+  })
+)
+
+const coverTodayItems = computed(() =>
+  todayItems.value.filter((item) => {
+    const { startDate, endDate } = getItemRange(item)
+    return !(startDate === todayKey && endDate === todayKey)
+  })
+)
+
+const hasUpcomingSplit = computed(() =>
+  mustTodayItems.value.length > 0 && coverTodayItems.value.length > 0
 )
 
 onMounted(async () => {
@@ -674,16 +730,47 @@ onUnmounted(() => {
             <button class="ghost" @click="openCalendar">日历</button>
           </div>
           <div class="upcoming-list">
-            <div v-for="item in upcoming" :key="item.title" class="upcoming-item" @click="toggleUpcomingStatus(item)">
-              <span class="upcoming-stamp" :class="`status-${item.status}`">
-                {{ getUpcomingStatusLabel(item.status) }}
-              </span>
-              <div class="upcoming-time">{{ item.time }}</div>
-              <div class="upcoming-title">
-                <Icon :icon="item.icon" />
-                {{ item.title }}
+            <div v-if="!todayItems.length" class="empty-state">暂无安排</div>
+
+            <template v-else>
+              <div v-if="mustTodayItems.length" class="upcoming-group">
+                <div class="upcoming-group-title">今日必做</div>
+                <div
+                  v-for="item in mustTodayItems"
+                  :key="item.id"
+                  class="upcoming-item"
+                  @click="toggleUpcomingStatus(item)"
+                >
+                  <span class="upcoming-stamp" :class="`status-${item.status}`">
+                    {{ getUpcomingStatusLabel(item.status) }}
+                  </span>
+                  <div class="upcoming-title">
+                    <Icon :icon="item.icon" />
+                    {{ item.title }}
+                  </div>
+                </div>
               </div>
-            </div>
+
+              <div v-if="hasUpcomingSplit" class="upcoming-divider"></div>
+
+              <div v-if="coverTodayItems.length" class="upcoming-group">
+                <div class="upcoming-group-title">涵盖今日</div>
+                <div
+                  v-for="item in coverTodayItems"
+                  :key="item.id"
+                  class="upcoming-item"
+                  @click="toggleUpcomingStatus(item)"
+                >
+                  <span class="upcoming-stamp" :class="`status-${item.status}`">
+                    {{ getUpcomingStatusLabel(item.status) }}
+                  </span>
+                  <div class="upcoming-title">
+                    <Icon :icon="item.icon" />
+                    {{ item.title }}
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
         </section>
       </aside>

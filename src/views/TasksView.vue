@@ -14,13 +14,60 @@ type Task = {
   title: string
   category: string
   priority: 'P1' | 'P2' | 'P3'
-  due: string
+  startAt?: string
+  endAt?: string
+  rangeLabel: string
+  dueDate: string
   done: boolean
   icon: string
 }
 
 const categories = ['家庭', '工作', '健康', '学习']
 const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
+
+const pad = (value: number) => String(value).padStart(2, '0')
+const toDateTimeLocal = (value?: string) => {
+  if (!value) return ''
+  const normalized = value.replace('T', ' ').trim()
+  return normalized.slice(0, 16).replace(' ', 'T')
+}
+const toServerDateTime = (value: string) => {
+  const normalized = value.trim()
+  if (!normalized) return ''
+  if (normalized.includes('T')) {
+    const base = normalized.replace('T', ' ')
+    return base.length === 16 ? `${base}:00` : base
+  }
+  return normalized.length === 16 ? `${normalized}:00` : normalized
+}
+const buildRangeLabel = (startAt?: string, endAt?: string, dueDate?: string) => {
+  const start = startAt ? startAt.replace('T', ' ') : ''
+  const end = endAt ? endAt.replace('T', ' ') : ''
+  if (start && end) {
+    const startDate = start.slice(0, 10)
+    const endDate = end.slice(0, 10)
+    const startTime = start.slice(11, 16)
+    const endTime = end.slice(11, 16)
+    if (startDate === endDate) {
+      return `${startDate} ${startTime} ~ ${endTime}`
+    }
+    return `${start.slice(0, 16)} ~ ${end.slice(0, 16)}`
+  }
+  if (end) return end.slice(0, 16)
+  if (start) return start.slice(0, 16)
+  return dueDate || ''
+}
+const buildDefaultRange = () => {
+  const now = new Date()
+  const end = new Date()
+  end.setHours(23, 59, 0, 0)
+  const formatLocal = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return {
+    startAt: formatLocal(now),
+    endAt: formatLocal(end)
+  }
+}
 
 const tasks = ref<Task[]>([])
 const loading = shallowRef(false)
@@ -37,13 +84,15 @@ const form = ref<{
   title: string
   category: string
   priority: Task['priority']
-  due: string
+  startAt: string
+  endAt: string
   icon: string
 }>({
   title: '',
   category: categories[0] ?? '家庭',
   priority: priorities[1] ?? 'P2',
-  due: '',
+  startAt: '',
+  endAt: '',
   icon: 'mdi:checkbox-marked-circle-outline'
 })
 
@@ -63,15 +112,24 @@ const completed = computed(() => tasks.value.filter((t) => t.done).length)
 const completion = computed(() =>
   tasks.value.length ? Math.round((completed.value / tasks.value.length) * 100) : 0
 )
-const overdue = computed(() => tasks.value.filter((t) => t.due.includes('昨天')).length)
+const overdue = computed(() => {
+  const today = new Date().toISOString().slice(0, 10)
+  return tasks.value.filter((t) => {
+    if (t.done) return false
+    const date = t.endAt ? t.endAt.slice(0, 10) : t.dueDate
+    return !!date && date < today
+  }).length
+})
 
 const openCreate = () => {
   editingId.value = null
+  const { startAt, endAt } = buildDefaultRange()
   form.value = {
     title: '',
     category: categories[0] ?? '家庭',
     priority: priorities[1] ?? 'P2',
-    due: '',
+    startAt,
+    endAt,
     icon: 'mdi:checkbox-marked-circle-outline'
   }
   modalOpen.value = true
@@ -83,7 +141,8 @@ const openEdit = (task: Task) => {
     title: task.title,
     category: task.category,
     priority: task.priority,
-    due: task.due,
+    startAt: toDateTimeLocal(task.startAt),
+    endAt: toDateTimeLocal(task.endAt),
     icon: task.icon
   }
   modalOpen.value = true
@@ -94,15 +153,23 @@ const fetchTasks = async () => {
   error.value = ''
   try {
     const data = await apiFetch<any[]>('/tasks')
-    tasks.value = data.map((item) => ({
-      id: item.id,
-      title: item.title,
-      category: item.category,
-      priority: item.priority,
-      due: item.due_date ?? item.due,
-      done: !!item.done,
-      icon: item.icon || 'mdi:checkbox-marked-circle-outline'
-    }))
+    tasks.value = data.map((item) => {
+      const startAt = item.start_at || item.startAt
+      const endAt = item.end_at || item.endAt
+      const dueDate = item.due_date ?? item.due ?? ''
+      return {
+        id: item.id,
+        title: item.title,
+        category: item.category,
+        priority: item.priority,
+        startAt,
+        endAt,
+        dueDate,
+        rangeLabel: buildRangeLabel(startAt, endAt, dueDate),
+        done: !!item.done,
+        icon: item.icon || 'mdi:checkbox-marked-circle-outline'
+      }
+    })
   } catch (err: any) {
     error.value = err?.message || '任务加载失败'
   } finally {
@@ -133,7 +200,8 @@ const saveTask = async () => {
           title: form.value.title,
           category: form.value.category,
           priority: form.value.priority,
-          due: form.value.due,
+          start_at: toServerDateTime(form.value.startAt),
+          end_at: toServerDateTime(form.value.endAt),
           icon: form.value.icon
         }
       })
@@ -145,7 +213,8 @@ const saveTask = async () => {
           title: form.value.title,
           category: form.value.category,
           priority: form.value.priority,
-          due: form.value.due,
+          start_at: toServerDateTime(form.value.startAt),
+          end_at: toServerDateTime(form.value.endAt),
           icon: form.value.icon
         }
       })
@@ -233,7 +302,7 @@ onMounted(fetchTasks)
               <div class="task-meta">
                 <span class="tag">{{ task.category }}</span>
                 <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
-                <span class="tag">{{ task.due }}</span>
+                <span class="tag">{{ task.rangeLabel }}</span>
               </div>
             </div>
             <div class="task-actions">
@@ -273,8 +342,12 @@ onMounted(fetchTasks)
               </select>
             </label>
             <label>
-              <span>截止</span>
-              <input v-model="form.due" placeholder="例如：今天 18:00" />
+              <span>开始</span>
+              <input v-model="form.startAt" type="datetime-local" />
+            </label>
+            <label>
+              <span>结束</span>
+              <input v-model="form.endAt" type="datetime-local" />
             </label>
           </div>
           <div class="modal-actions">
