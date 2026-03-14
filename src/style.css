@@ -1144,17 +1144,39 @@ select {
 }
 
 @media (max-width: 720px) {
+  .family-category-body {
+    grid-template-columns: 1fr !important;
+    justify-items: center;
+    text-align: center;
+  }
+  .family-waffle-stack {
+    justify-items: center;
+  }
+  .family-waffle-total {
+    text-align: center;
+  }
   .family-waffle-legend {
     grid-template-columns: 1fr;
+    margin-top: 4px;
+  }
+  .family-waffle {
+    width: 180px;
+    height: 180px;
   }
 }
 
 .family-category-body {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 240px 1fr;
   gap: 16px;
-  align-items: center;
-  text-align: center;
+  align-items: start;
+  text-align: left;
+}
+
+.family-waffle-stack {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
 }
 
 .family-waffle-wrap {
@@ -1187,11 +1209,11 @@ select {
 }
 
 .family-waffle-total {
-  margin-top: -6px;
+  margin-top: 2px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
-  text-align: center;
+  text-align: left;
 }
 
 .family-waffle-legend {
@@ -1204,28 +1226,10 @@ select {
 
 .family-waffle-item {
   display: grid;
-  grid-template-columns: 12px 1fr auto;
+  grid-template-columns: 12px 1fr auto auto;
   align-items: center;
   gap: 8px;
   font-size: 13px;
-}
-
-.member-compare-dots {
-  display: grid;
-  grid-template-columns: repeat(10, 10px);
-  gap: 4px;
-  align-items: center;
-}
-
-.member-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--text-muted) 20%, transparent);
-}
-
-.member-dot.active {
-  background: linear-gradient(135deg, var(--primary), var(--accent));
 }
 
 .family-waffle-item .dot {
@@ -1234,7 +1238,8 @@ select {
   border-radius: 50%;
 }
 
-.family-waffle-item .value {
+.family-waffle-item .value,
+.family-waffle-item .amount {
   font-weight: 600;
 }
 
@@ -1448,6 +1453,30 @@ select {
   flex-wrap: wrap;
 }
 
+@media (max-width: 720px) {
+  .member-compare-grid {
+    grid-template-columns: 1fr !important;
+    justify-items: center;
+    text-align: center;
+  }
+  .member-compare-waffle-grid {
+    width: 180px;
+    height: 180px;
+  }
+  .member-compare-legend {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+  .member-legend-item {
+    grid-template-columns: 12px 1fr;
+    row-gap: 4px;
+  }
+  .member-legend-item .value,
+  .member-legend-item .amount {
+    justify-self: end;
+  }
+}
+
 .member-compare-month {
   display: inline-flex;
   align-items: center;
@@ -1497,42 +1526,55 @@ select {
   transform: translateY(-6px);
 }
 
-.member-compare-list {
+.member-compare-grid {
   display: grid;
-  gap: 12px;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  align-items: start;
 }
 
-.member-compare-item {
+.member-compare-waffle-grid {
+  width: 220px;
+  height: 220px;
   display: grid;
-  grid-template-columns: 140px 1fr auto;
-  align-items: center;
-  gap: 12px;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(10, 1fr);
+  gap: 4px;
+  padding: 10px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
-.member-compare-name {
-  display: inline-flex;
+.member-waffle-tile {
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  opacity: 0.9;
+}
+
+.member-compare-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.member-legend-item {
+  display: grid;
+  grid-template-columns: 12px 1fr auto auto;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
-}
-
-.member-compare-bar {
-  height: 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
-  overflow: hidden;
-}
-
-.member-compare-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--primary), var(--accent));
-  transition: opacity 0.35s ease;
-  opacity: 0;
-}
-
-.member-compare-value {
   font-size: 13px;
+}
+
+.member-legend-item .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.member-legend-item .value,
+.member-legend-item .amount {
   font-weight: 600;
 }
 

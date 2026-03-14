@@ -34,6 +34,7 @@ const props = defineProps<{
   title?: string
   subtitle?: string
   summary?: Summary | null
+  currentName?: string
 }>()
 
 const parseMonth = (value: string): { year: number; month: number } => {
@@ -81,7 +82,18 @@ const familyTotal = computed(() => {
     .reduce((sum, item) => sum + item.amount, 0)
 })
 
-const memberTotals = computed(() => {
+const memberRows = computed(() => {
+  const currentName = props.currentName
+
+  const sortRows = <T extends { name?: string; total?: number }>(rows: T[]) => {
+    if (!currentName) return rows.sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
+    return [...rows].sort((a, b) => {
+      if (a.name === currentName) return -1
+      if (b.name === currentName) return 1
+      return (b.total ?? 0) - (a.total ?? 0)
+    })
+  }
+
   if (useSummary.value) {
     const rows = summaryMembers.value.map((member) => {
       const total = mode.value === 'expense'
@@ -89,15 +101,7 @@ const memberTotals = computed(() => {
         : Number(member.income ?? 0)
       return { ...member, total }
     })
-    const max = Math.max(1, ...rows.map((row) => row.total))
-    return rows.map((row) => {
-      const ratio = max ? row.total / max : 0
-      return {
-        ...row,
-        percent: Math.round(ratio * 100),
-        blocks: Math.round(ratio * 10)
-      }
-    })
+    return sortRows(rows)
   }
 
   const rows = propMembers.value.map((member) => {
@@ -107,15 +111,47 @@ const memberTotals = computed(() => {
       .reduce((sum, item) => sum + item.amount, 0)
     return { ...member, total }
   })
-  const max = Math.max(1, ...rows.map((row) => row.total))
-  return rows.map((row) => {
-    const ratio = max ? row.total / max : 0
-    return {
-      ...row,
-      percent: Math.round(ratio * 100),
-      blocks: Math.round(ratio * 10)
+  return sortRows(rows)
+})
+
+const memberWaffle = computed(() => {
+  const rows = memberRows.value
+  if (!rows.length) return { tiles: [], legend: [] }
+  const total = rows.reduce((sum, r) => sum + Number(r.total ?? 0), 0)
+  if (!total) {
+    const legend = rows.map((r, idx) => ({
+      ...r,
+      color: `hsl(${(idx * 55) % 360} 80% 55%)`,
+      percent: 0
+    }))
+    const tiles = Array.from({ length: 100 }, () => ({ name: '', color: 'transparent' }))
+    return { tiles, legend }
+  }
+
+  const legend = rows.map((r, idx) => ({
+    ...r,
+    color: `hsl(${(idx * 55) % 360} 80% 55%)`,
+    percent: Math.round((Number(r.total ?? 0) / total) * 100)
+  }))
+
+  const counts = legend.map((item) => ({
+    ...item,
+    count: Math.round((Number(item.total ?? 0) / total) * 100)
+  }))
+  let allocated = counts.reduce((sum, item) => sum + item.count, 0)
+  if (allocated !== 100 && counts.length) {
+    const diff = 100 - allocated
+    counts[0].count = Math.max(0, counts[0].count + diff)
+  }
+
+  const tiles: Array<{ name: string; color: string }> = []
+  counts.forEach((item) => {
+    for (let i = 0; i < item.count; i += 1) {
+      tiles.push({ name: item.name ?? '', color: item.color })
     }
   })
+
+  return { tiles, legend }
 })
 
 const prevMonth = () => {
@@ -151,24 +187,23 @@ const nextMonth = () => {
 
     <div class="member-compare-summary">家庭总{{ mode === 'expense' ? '支出' : '收入' }}：¥ {{ familyTotal }}</div>
 
-    <div class="member-compare-list">
-      <div v-for="item in memberTotals" :key="item.id" class="member-compare-item">
-        <div class="member-compare-name">
-          <span class="member-avatar">
-            <img v-if="item.avatar" :src="item.avatar" :alt="item.name" />
-            <span v-else>{{ item.name.slice(0, 1) }}</span>
-          </span>
-          <span>{{ item.name }}</span>
+    <div class="member-compare-grid">
+      <div class="member-compare-waffle-grid">
+        <div
+          v-for="(tile, idx) in memberWaffle.tiles"
+          :key="idx"
+          class="member-waffle-tile"
+          :style="{ background: tile.color }"
+          :title="tile.name"
+        ></div>
+      </div>
+      <div class="member-compare-legend">
+        <div v-for="item in memberWaffle.legend" :key="item.id" class="member-legend-item">
+          <span class="dot" :style="{ background: item.color }"></span>
+          <span class="name">{{ item.name }}</span>
+          <span class="value">{{ item.percent }}%</span>
+          <span class="amount">¥ {{ item.total }}</span>
         </div>
-        <div class="member-compare-dots">
-          <span
-            v-for="i in 10"
-            :key="i"
-            class="member-dot"
-            :class="i <= (item.blocks ?? 0) && 'active'"
-          ></span>
-        </div>
-        <div class="member-compare-value">¥ {{ item.total }}</div>
       </div>
     </div>
   </section>

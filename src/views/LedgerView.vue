@@ -542,14 +542,14 @@ onMounted(async () => {
           </div>
 
           <div class="family-tabs">
+            <button class="chip" :class="familyTab === 'category' && 'active'" @click="familyTab = 'category'">
+              分类占比
+            </button>
             <button class="chip" :class="familyTab === 'expense' && 'active'" @click="familyTab = 'expense'">
               支出对比
             </button>
             <button class="chip" :class="familyTab === 'income' && 'active'" @click="familyTab = 'income'">
               收入对比
-            </button>
-            <button class="chip" :class="familyTab === 'category' && 'active'" @click="familyTab = 'category'">
-              分类占比
             </button>
           </div>
 
@@ -559,9 +559,10 @@ onMounted(async () => {
               :members="familyMembers"
               :records="familySummaryRecords"
               :summary="familySummary"
+              :current-name="currentMemberName"
               mode="expense"
               title="家庭成员月度支出对比"
-              subtitle="全体成员汇总"
+              subtitle="先个人后家庭"
             />
           </div>
 
@@ -571,9 +572,10 @@ onMounted(async () => {
               :members="familyMembers"
               :records="familySummaryRecords"
               :summary="familySummary"
+              :current-name="currentMemberName"
               mode="income"
               title="家庭成员月度收入对比"
-              subtitle="全体成员汇总"
+              subtitle="先个人后家庭"
             />
           </div>
 
@@ -581,24 +583,27 @@ onMounted(async () => {
             <div class="family-category">
               <div class="family-category-head">{{ compareMonth }} · 家庭支出分类</div>
               <div class="family-category-body">
-                <div class="family-waffle-wrap">
-                  <div class="family-waffle">
-                    <div
-                      v-for="(tile, idx) in familyWaffle.tiles"
-                      :key="idx"
-                      class="waffle-tile"
-                      :style="{ background: tile.color }"
-                      :title="tile.category"
-                    ></div>
+                <div class="family-waffle-stack">
+                  <div class="family-waffle-wrap">
+                    <div class="family-waffle">
+                      <div
+                        v-for="(tile, idx) in familyWaffle.tiles"
+                        :key="idx"
+                        class="waffle-tile"
+                        :style="{ background: tile.color }"
+                        :title="tile.category"
+                      ></div>
+                    </div>
                   </div>
+                  <div class="family-waffle-total">支出总额 ¥ {{ formatAmount(totalExpense) }}</div>
                 </div>
-                <div class="family-waffle-total">支出总额 ¥ {{ formatAmount(totalExpense) }}</div>
 
                 <div class="family-waffle-legend">
                   <div v-for="item in familyWaffle.legend" :key="item.category" class="family-waffle-item">
                     <span class="dot" :style="{ background: item.color }"></span>
                     <span class="name">{{ item.category }}</span>
                     <span class="value">{{ item.percent }}%</span>
+                    <span class="amount">¥ {{ formatAmount(item.total) }}</span>
                   </div>
                 </div>
               </div>
