@@ -1,24 +1,46 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AppHeader from '../components/AppHeader.vue'
+import { apiFetch } from '../api/client'
 
-// 模拟数据：用于 UI/图表占位（后续接 API 时替换即可）
-const labels = ['一', '二', '三', '四', '五', '六', '日']
+const labels = ref(['一', '二', '三', '四', '五', '六', '日'])
+const weeklyMinutes = ref([0, 0, 0, 0, 0, 0, 0])
+const tasksDoneWeek = ref(0)
+const habitsRateWeek = ref(0)
+const ledgerCountWeek = ref(0)
 
-// 每日专注分钟（本周节奏）
-const weeklyMinutes = [95, 120, 65, 140, 80, 50, 110]
-
-const maxMinutes = computed(() => Math.max(...weeklyMinutes))
+const maxMinutes = computed(() => Math.max(1, ...weeklyMinutes.value))
 const weeklyPercent = computed(() =>
-  weeklyMinutes.map((m) => Math.round((m / maxMinutes.value) * 100))
+  weeklyMinutes.value.map((m) => Math.round((m / maxMinutes.value) * 100))
 )
 
-const totalMinutes = computed(() => weeklyMinutes.reduce((a, b) => a + b, 0))
+const totalMinutes = computed(() => weeklyMinutes.value.reduce((a, b) => a + b, 0))
 const focusHoursText = computed(() => (totalMinutes.value / 60).toFixed(1) + ' 小时')
 
-const tasksDoneWeek = 18
-const habitsRateWeek = 86
-const ledgerCountWeek = 24
+const fetchStats = async () => {
+  try {
+    const data = await apiFetch<{
+      labels: string[]
+      focusMinutes: number[]
+      tasksDone?: number
+      habitsRate?: number
+      ledgerCount?: number
+    }>('/stats/weekly')
+    if (data.labels?.length) {
+      labels.value = data.labels
+    }
+    if (data.focusMinutes?.length) {
+      weeklyMinutes.value = data.focusMinutes
+    }
+    tasksDoneWeek.value = data.tasksDone ?? tasksDoneWeek.value
+    habitsRateWeek.value = data.habitsRate ?? habitsRateWeek.value
+    ledgerCountWeek.value = data.ledgerCount ?? ledgerCountWeek.value
+  } catch {
+    // ignore
+  }
+}
+
+onMounted(fetchStats)
 </script>
 
 <template>

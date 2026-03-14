@@ -6,6 +6,7 @@ export type CalendarEvent = {
   title: string
   time?: string
   status?: 'todo' | 'done' | 'overdue'
+  sourceType?: 'task' | 'habit'
 }
 
 const props = defineProps<{
@@ -62,7 +63,7 @@ const selectedEvents = computed(() => {
 })
 
 const getStatusLabel = (status?: CalendarEvent['status']) => {
-  if (status === 'done') return '已完成'
+  if (status === 'done') return '✓'
   if (status === 'overdue') return '逾期'
   return '待办'
 }
@@ -159,7 +160,10 @@ watchEffect(() => {
           <div v-if="selectedEvents.length" class="calendar-events-list">
             <div v-for="event in selectedEvents" :key="event.title" class="calendar-event">
               <span class="calendar-event-time">{{ event.time ?? '全天' }}</span>
-              <span>{{ event.title }}</span>
+              <span class="calendar-event-title">{{ event.title }}</span>
+              <span v-if="event.sourceType" class="source-pill" :class="`source-${event.sourceType}`">
+                {{ event.sourceType === 'task' ? '任务' : '习惯' }}
+              </span>
               <span class="status-pill" :class="`status-${event.status ?? 'todo'}`">
                 {{ getStatusLabel(event.status) }}
               </span>
@@ -171,3 +175,38 @@ watchEffect(() => {
     </div>
   </Transition>
 </template>
+
+<style scoped>
+.status-pill.status-done {
+  color: var(--success-text);
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+}
+
+.calendar-event-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-pill {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.source-task {
+  border-color: rgba(99, 102, 241, 0.45);
+  color: rgba(165, 180, 252, 0.95);
+}
+
+.source-habit {
+  border-color: rgba(34, 197, 94, 0.45);
+  color: rgba(134, 239, 172, 0.95);
+}
+</style>

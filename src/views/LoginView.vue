@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
+import { Icon, addCollection } from '@iconify/vue'
+import mdi from '@iconify-json/mdi/icons.json'
 import { useTheme } from '../composables/useTheme'
+import { apiFetch } from '../api/client'
 
 const router = useRouter()
 const { theme } = useTheme()
+
+addCollection(mdi)
 
 const themes = [
   { id: 'light', label: '浅色' },
@@ -14,6 +19,14 @@ const themes = [
 
 const account = ref('')
 const password = ref('')
+const loading = ref(false)
+const error = ref('')
+
+const themeMenuOpen = shallowRef(false)
+
+const toggleThemeMenu = () => {
+  themeMenuOpen.value = !themeMenuOpen.value
+}
 
 const highlights = [
   { title: '家庭共享', desc: '给家人分配任务、同步进度，减少沟通成本。' },
@@ -28,9 +41,29 @@ const highlights = [
 
 const highlightLoop = [...highlights, ...highlights]
 
-const login = () => {
-  localStorage.setItem('pulse.token', 'demo-token')
-  router.push('/dashboard')
+const login = async () => {
+  if (!account.value || !password.value) {
+    error.value = '请输入账号和密码'
+    return
+  }
+  loading.value = true
+  error.value = ''
+  try {
+    const data = await apiFetch<{ token: string; user: any }>('/auth/login', {
+      method: 'POST',
+      body: {
+        account: account.value,
+        password: password.value
+      }
+    })
+    localStorage.setItem('pulse.token', data.token)
+    localStorage.setItem('pulse.user', JSON.stringify(data.user))
+    router.push('/dashboard')
+  } catch (err: any) {
+    error.value = err?.message || '登录失败'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -52,6 +85,22 @@ const login = () => {
           >
             {{ item.label }}
           </button>
+        </div>
+        <div class="theme-menu">
+          <button class="ghost theme-menu-btn" @click="toggleThemeMenu" aria-label="切换主题">
+            <Icon class="icon" icon="mdi:palette" />
+          </button>
+          <div v-if="themeMenuOpen" class="theme-popover">
+            <button
+              v-for="item in themes"
+              :key="item.id"
+              class="ghost"
+              :class="theme === item.id && 'active'"
+              @click="theme = item.id; themeMenuOpen = false"
+            >
+              {{ item.label }}
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -88,8 +137,12 @@ const login = () => {
           <div class="row row-right">
             <a class="link" href="#">忘记密码？</a>
           </div>
-          <button class="primary primary-btn" type="submit">登录</button>
+          <button class="primary primary-btn" type="submit" :disabled="loading">
+            {{ loading ? '登录中…' : '登录' }}
+          </button>
         </form>
+
+        <p v-if="error" class="error-text">{{ error }}</p>
 
         <p class="footnote">
           登录即代表你同意 <a class="link" href="#">服务条款</a> 与

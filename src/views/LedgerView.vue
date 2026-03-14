@@ -1,80 +1,57 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, onMounted } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import AppHeader from '../components/AppHeader.vue'
 import MemberSpendCompare from '../components/MemberSpendCompare.vue'
+import { apiFetch } from '../api/client'
+import { pushToast } from '../composables/useToast'
+import { useRecycleFly } from '../composables/useRecycleFly'
 
-const categories = ['餐饮', '交通', '居家', '教育', '娱乐', '其他']
+const defaultCategories = ['餐饮', '交通', '居家', '教育', '娱乐', '其他']
+const categories = ref<string[]>([...defaultCategories])
 const types = ['expense', 'income'] as const
 
 type LedgerType = (typeof types)[number]
 
-type LedgerMember = {
-  id: string
-  name: string
-  avatar: string
-}
-
 type LedgerRecord = {
-  id: string
+  id: string | number
   type: LedgerType
   category: string
+  categoryId?: string | number
   amount: number
   date: string
   note: string
-  memberId: string
+  memberId?: string | number
 }
 
-const members = ref<LedgerMember[]>([
-  { id: 'm1', name: '罗董', avatar: '/avatars/avatar-1.svg' },
-  { id: 'm2', name: '小李', avatar: '/avatars/avatar-2.svg' }
-])
+type FamilySummary = {
+  month: string
+  expenseTotal: number
+  incomeTotal: number
+  members: Array<{
+    id: string | number
+    name: string
+    avatar?: string | null
+    expense: number
+    income: number
+  }>
+  categories: Array<{
+    category: string
+    total: number
+  }>
+}
 
 const compareMonth = shallowRef(new Date().toISOString().slice(0, 7))
-
-const getDefaultMemberId = () => members.value[0]?.id ?? 'm1'
-const currentMemberId = shallowRef(getDefaultMemberId())
-const currentMember = computed(
-  () => members.value.find((member) => member.id === currentMemberId.value) ?? members.value[0]
-)
-
-const records = ref<LedgerRecord[]>([
-  {
-    id: 'l1',
-    type: 'expense',
-    category: '餐饮',
-    amount: 68,
-    date: '2026-03-13',
-    note: '午餐',
-    memberId: 'm1'
-  },
-  {
-    id: 'l2',
-    type: 'expense',
-    category: '交通',
-    amount: 22,
-    date: '2026-03-13',
-    note: '打车',
-    memberId: 'm1'
-  },
-  {
-    id: 'l3',
-    type: 'income',
-    category: '其他',
-    amount: 1200,
-    date: '2026-03-12',
-    note: '项目结算',
-    memberId: 'm2'
-  },
-  {
-    id: 'l4',
-    type: 'expense',
-    category: '居家',
-    amount: 199,
-    date: '2026-03-12',
-    note: '日用品',
-    memberId: 'm2'
-  }
-])
+const currentMemberName = ref('我')
+const records = ref<LedgerRecord[]>([])
+const loading = shallowRef(false)
+const error = shallowRef('')
+const familySummary = ref<FamilySummary>({
+  month: compareMonth.value,
+  expenseTotal: 0,
+  incomeTotal: 0,
+  members: [],
+  categories: []
+})
 
 const query = ref('')
 const filterType = ref<'all' | 'expense' | 'income'>('all')
@@ -82,23 +59,20 @@ const filterCategory = ref('all')
 
 const modalOpen = ref(false)
 const familyOverviewOpen = ref(false)
+
+const { flyToRecycle } = useRecycleFly()
 const familyTab = ref<'expense' | 'income' | 'category'>('expense')
-const editingId = ref<string | null>(null)
-const form = ref<Omit<LedgerRecord, 'id'>>({
-  type: 'expense',
-  category: categories[0] ?? '餐饮',
+const editingId = ref<string | number | null>(null)
+const form = ref({
+  type: 'expense' as LedgerType,
+  category: categories.value[0] ?? '其他',
   amount: 0,
-  date: '2026-03-13',
-  note: '',
-  memberId: currentMemberId.value
+  date: new Date().toISOString().slice(0, 10),
+  note: ''
 })
 
-const memberRecords = computed(() =>
-  records.value.filter((item) => item.memberId === currentMemberId.value)
-)
-
 const filtered = computed(() => {
-  return memberRecords.value.filter((item) => {
+  return records.value.filter((item) => {
     const hitQuery = item.note.includes(query.value.trim())
     const hitType = filterType.value === 'all' || item.type === filterType.value
     const hitCategory = filterCategory.value === 'all' || item.category === filterCategory.value
@@ -107,23 +81,71 @@ const filtered = computed(() => {
 })
 
 const totalIncome = computed(() =>
-  memberRecords.value.filter((r) => r.type === 'income').reduce((sum, r) => sum + r.amount, 0)
+  records.value.filter((r) => r.type === 'income').reduce((sum, r) => sum + r.amount, 0)
 )
 const totalExpense = computed(() =>
-  memberRecords.value.filter((r) => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0)
+  records.value.filter((r) => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0)
 )
 const balance = computed(() => totalIncome.value - totalExpense.value)
 
-const familyMonthRecords = computed(() =>
-  records.value.filter((item) => item.date.startsWith(compareMonth.value))
-)
+const familyMembers = computed(() => {
+  if (familySummary.value.members.length) {
+    return familySummary.value.members.map((member) => ({
+      id: member.id,
+      name: member.name,
+      avatar: member.avatar ?? null
+    }))
+  }
+  return [
+    {
+      id: 'self',
+      name: currentMemberName.value,
+      avatar: null
+    }
+  ]
+})
+
+const familySummaryRecords = computed(() => {
+  if (!familySummary.value.members.length) {
+    return records.value.map((item) => ({
+      ...item,
+      memberId: item.memberId ?? 'self'
+    }))
+  }
+  const month = familySummary.value.month || compareMonth.value
+  const date = `${month}-01`
+  const rows: LedgerRecord[] = []
+  familySummary.value.members.forEach((member) => {
+    if (member.expense > 0) {
+      rows.push({
+        id: `expense-${member.id}`,
+        type: 'expense',
+        category: '家庭',
+        amount: member.expense,
+        date,
+        note: '家庭支出',
+        memberId: member.id
+      })
+    }
+    if (member.income > 0) {
+      rows.push({
+        id: `income-${member.id}`,
+        type: 'income',
+        category: '家庭',
+        amount: member.income,
+        date,
+        note: '家庭收入',
+        memberId: member.id
+      })
+    }
+  })
+  return rows
+})
 
 const familyCategoryTotals = computed(() => {
-  const totals = categories.map((cat) => {
-    const total = familyMonthRecords.value
-      .filter((item) => item.type === 'expense')
-      .filter((item) => item.category === cat)
-      .reduce((sum, item) => sum + item.amount, 0)
+  const totals = categories.value.map((cat) => {
+    const row = familySummary.value.categories.find((item) => item.category === cat)
+    const total = row ? Number(row.total) : 0
     return { category: cat, total }
   })
   const max = Math.max(1, ...totals.map((row) => row.total))
@@ -133,113 +155,303 @@ const familyCategoryTotals = computed(() => {
   }))
 })
 
-const donutStyle = computed(() => {
-  const expenses = memberRecords.value.filter((r) => r.type === 'expense')
-  const total = expenses.reduce((sum, r) => sum + r.amount, 0) || 1
-  const palette = ['#6366f1', '#38bdf8', '#f97316', '#10b981', '#f43f5e', '#a78bfa']
-  let start = 0
-  const slices = categories.map((cat, idx) => {
-    const value = expenses.filter((e) => e.category === cat).reduce((sum, e) => sum + e.amount, 0)
-    const pct = (value / total) * 100
-    const end = start + pct
-    const seg = `${palette[idx % palette.length]} ${start}% ${end}%`
-    start = end
-    return seg
+const chartPalette = ['#f97316', '#fb7185', '#facc15', '#34d399', '#60a5fa', '#a78bfa', '#f59e0b', '#22c55e']
+
+const formatAmount = (value: number | string) => Number(value || 0).toFixed(2)
+
+const categoryChart = computed(() => {
+  const totals = new Map<string, number>()
+  categories.value.forEach((cat) => totals.set(cat, 0))
+  records.value.forEach((r) => {
+    if (r.type !== 'expense') return
+    const key = r.category || '其他'
+    totals.set(key, (totals.get(key) ?? 0) + Number(r.amount))
   })
-  return { background: `conic-gradient(${slices.join(',')})` }
+  const list = Array.from(totals.entries())
+    .map(([category, total], idx) => ({
+      category,
+      total,
+      color: chartPalette[idx % chartPalette.length]
+    }))
+    .filter((item) => item.total > 0)
+
+  if (!list.length) return []
+  const max = Math.max(1, ...list.map((item) => item.total))
+  return list
+    .sort((a, b) => b.total - a.total)
+    .map((item) => ({
+      ...item,
+      percent: Math.round((item.total / max) * 100)
+    }))
 })
+
+const familyWaffle = computed(() => {
+  const rows = familyCategoryTotals.value.filter((r) => r.total > 0)
+  if (!rows.length) return { tiles: [], legend: [] }
+  const total = rows.reduce((sum, r) => sum + r.total, 0)
+  if (!total) return { tiles: [], legend: [] }
+
+  const legend = rows.map((r, idx) => ({
+    ...r,
+    color: chartPalette[idx % chartPalette.length],
+    percent: Math.round((r.total / total) * 100)
+  }))
+
+  const counts = legend.map((item) => ({
+    ...item,
+    count: Math.round((item.total / total) * 100)
+  }))
+
+  let allocated = counts.reduce((sum, item) => sum + item.count, 0)
+  if (allocated !== 100) {
+    const diff = 100 - allocated
+    counts[0].count = Math.max(0, counts[0].count + diff)
+  }
+
+  const tiles: Array<{ category: string; color: string }> = []
+  counts.forEach((item) => {
+    for (let i = 0; i < item.count; i += 1) {
+      tiles.push({ category: item.category, color: item.color })
+    }
+  })
+
+  return { tiles, legend }
+})
+
+const fetchRecords = async () => {
+  loading.value = true
+  error.value = ''
+  try {
+    const data = await apiFetch<any[]>('/ledger/records')
+    records.value = data.map((item) => ({
+      id: item.id,
+      type: item.type,
+      category: item.category,
+      categoryId: item.category_id ?? item.categoryId ?? item.categoryID,
+      amount: Number(item.amount),
+      date: item.date,
+      note: item.note ?? '',
+      memberId: item.member_id ?? item.memberId ?? 'self'
+    }))
+  } catch (err: any) {
+    error.value = err?.message || '记账加载失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+const fetchFamilySummary = async () => {
+  try {
+    const data = await apiFetch<any>(`/ledger/family/summary?month=${compareMonth.value}`)
+    familySummary.value = {
+      month: data.month,
+      expenseTotal: Number(data.expenseTotal ?? 0),
+      incomeTotal: Number(data.incomeTotal ?? 0),
+      members: (data.members ?? []).map((member: any) => ({
+        id: member.id ?? member.memberId ?? 'self',
+        name: member.name ?? member.memberName ?? currentMemberName.value,
+        avatar: member.avatar ?? null,
+        expense: Number(member.expense ?? 0),
+        income: Number(member.income ?? 0)
+      })),
+      categories: data.categories ?? []
+    }
+  } catch {
+    // ignore
+  }
+}
+
+const fetchCategories = async () => {
+  try {
+    const data = await apiFetch<any[]>('/ledger/categories')
+    const base = [...defaultCategories]
+    if (Array.isArray(data) && data.length) {
+      const names = data
+        .map((item) => item.name ?? item.category ?? item)
+        .filter((name: any) => typeof name === 'string' && name.trim())
+      const extra = names.filter((name: string) => !base.includes(name))
+      const merged = [...base, ...extra]
+      if (!merged.includes('其他')) merged.push('其他')
+      categories.value = Array.from(new Set(merged))
+    } else {
+      if (!base.includes('其他')) base.push('其他')
+      categories.value = base
+    }
+  } catch {
+    categories.value = [...defaultCategories]
+    if (!categories.value.includes('其他')) categories.value.push('其他')
+  }
+
+  if (!categories.value.includes(form.value.category)) {
+    form.value.category = categories.value[0] ?? '其他'
+  }
+}
+
+const loadCurrentMember = async () => {
+  const cached = localStorage.getItem('pulse.user')
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached)
+      currentMemberName.value = parsed.nickname || currentMemberName.value
+    } catch {
+      // ignore
+    }
+  }
+  try {
+    const user = await apiFetch<any>('/users/me')
+    currentMemberName.value = user.nickname || currentMemberName.value
+  } catch {
+    // ignore
+  }
+}
 
 const openFamilyOverview = () => {
   familyOverviewOpen.value = true
 }
 
-onMounted(() => {
-  if (typeof window === 'undefined') return
-  const params = new URLSearchParams(window.location.search)
-  if (params.get('family') === '1') {
-    familyOverviewOpen.value = true
-  }
-})
-
 const openCreate = () => {
   editingId.value = null
   form.value = {
     type: 'expense',
-    category: categories[0] ?? '餐饮',
+    category: categories.value[0] ?? '其他',
     amount: 0,
-    date: '2026-03-13',
-    note: '',
-    memberId: currentMemberId.value
+    date: new Date().toISOString().slice(0, 10),
+    note: ''
   }
   modalOpen.value = true
 }
 
 const openEdit = (item: LedgerRecord) => {
   editingId.value = item.id
-  const { id, ...rest } = item
-  form.value = { ...rest }
+  form.value = {
+    type: item.type,
+    category: item.category,
+    amount: item.amount,
+    date: item.date,
+    note: item.note
+  }
   modalOpen.value = true
 }
 
-const saveRecord = () => {
+const saveRecord = async () => {
   if (!form.value.note.trim()) return
-  const payload = {
-    ...form.value,
-    // 明细只允许写入当前登录成员
-    memberId: currentMemberId.value
-  }
-  if (editingId.value) {
-    records.value = records.value.map((item) =>
-      item.id === editingId.value ? { ...item, ...payload } : item
-    )
-  } else {
-    records.value.unshift({ id: `l${Date.now()}`, ...payload })
+  try {
+    if (editingId.value) {
+      await apiFetch(`/ledger/records/${editingId.value}`, {
+        method: 'PATCH',
+        body: form.value
+      })
+      pushToast('记账已更新', 'success')
+    } else {
+      await apiFetch('/ledger/records', {
+        method: 'POST',
+        body: form.value
+      })
+      pushToast('记账已创建', 'success')
+    }
+    await fetchRecords()
+    await fetchFamilySummary()
+  } catch {
+    pushToast('记账保存失败', 'error')
   }
   modalOpen.value = false
 }
 
-const removeRecord = (id: string) => {
-  records.value = records.value.filter((r) => r.id !== id)
+const removeRecord = async (id: string | number, evt?: MouseEvent) => {
+  if (typeof window !== 'undefined') {
+    const ok = window.confirm('确认删除该记录吗？')
+    if (!ok) return
+  }
+  const sourceEl = (evt?.currentTarget as HTMLElement | null)?.closest('.ledger-item') as HTMLElement | null
+  flyToRecycle(sourceEl)
+  try {
+    await apiFetch(`/ledger/records/${id}`, { method: 'DELETE' })
+    await fetchRecords()
+    await fetchFamilySummary()
+    pushToast('记账已删除（已进入回收站）', 'success')
+  } catch {
+    pushToast('记账删除失败', 'error')
+  }
 }
+
+watch(compareMonth, () => {
+  fetchFamilySummary()
+})
+
+onMounted(async () => {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('family') === '1') {
+      familyOverviewOpen.value = true
+    }
+  }
+  await Promise.all([loadCurrentMember(), fetchCategories(), fetchRecords(), fetchFamilySummary()])
+})
 </script>
 
 <template>
   <div class="page">
     <AppHeader />
 
-    <main class="content">
-      <section class="panel glass">
-        <div class="section-title">
-          <h2>记账板块</h2>
-          <div class="header-actions">
+    <main class="content ledger-content">
+      <section class="panel glass ledger-overview">
+        <div class="task-board-head">
+          <div>
+            <h2>记账板块</h2>
+            <p class="muted">本月收支与分类概览</p>
+          </div>
+          <div class="ledger-actions">
             <button class="ghost task-pill header-pill" @click="openFamilyOverview">家庭概览</button>
             <button class="primary header-pill" @click="openCreate">新增记录</button>
           </div>
         </div>
 
-        <p class="muted">当前成员：{{ currentMember?.name ?? '未知' }}</p>
+        <div class="stat-grid compact ledger-stat-grid">
+          <div class="stat-card">
+            <span>本月收入</span>
+            <strong>¥ {{ formatAmount(totalIncome) }}</strong>
+          </div>
+          <div class="stat-card">
+            <span>本月支出</span>
+            <strong>¥ {{ formatAmount(totalExpense) }}</strong>
+          </div>
+          <div class="stat-card">
+            <span>结余</span>
+            <strong>¥ {{ formatAmount(balance) }}</strong>
+          </div>
+          <div class="stat-card">
+            <span>记录数</span>
+            <strong>{{ records.length }}</strong>
+          </div>
+        </div>
 
-        <div class="ledger-summary">
-          <div class="summary-card income">
-            <p class="muted">收入</p>
-            <h3>¥ {{ totalIncome }}</h3>
+        <div v-if="categoryChart.length" class="ledger-chart">
+          <div class="chart-summary">
+            <span class="kicker">支出分布</span>
+            <h3>¥ {{ formatAmount(totalExpense) }}</h3>
+            <p class="muted">本月支出总额</p>
           </div>
-          <div class="summary-card expense">
-            <p class="muted">支出</p>
-            <h3>¥ {{ totalExpense }}</h3>
-          </div>
-          <div class="summary-card balance">
-            <p class="muted">结余</p>
-            <h3>¥ {{ balance }}</h3>
-          </div>
-          <div class="summary-chart">
-            <div class="donut" :style="donutStyle"></div>
-            <div class="legend">
-              <div v-for="cat in categories" :key="cat" class="legend-item">
-                <span class="dot"></span>
-                <span>{{ cat }}</span>
+          <div class="chart-bars">
+            <div v-for="item in categoryChart" :key="item.category" class="chart-row">
+              <div class="chart-label">
+                <span class="dot" :style="{ background: item.color }"></span>
+                <span>{{ item.category }}</span>
               </div>
+              <div class="chart-bar">
+                <div class="chart-fill" :style="{ width: item.percent + '%', background: item.color }"></div>
+              </div>
+              <div class="chart-value">¥ {{ formatAmount(item.total) }}</div>
             </div>
+          </div>
+        </div>
+        <div v-else class="rose-empty">暂无支出数据</div>
+      </section>
+
+      <section class="panel glass ledger-list-panel">
+        <div class="task-board-head">
+          <div>
+            <h3>记账记录</h3>
+            <p class="muted">共 {{ records.length }} 条</p>
           </div>
         </div>
 
@@ -258,7 +470,11 @@ const removeRecord = (id: string) => {
           </select>
         </div>
 
-        <div class="ledger-list">
+        <div v-if="loading" class="empty-state">加载中…</div>
+        <div v-else-if="error" class="empty-state">{{ error }}</div>
+        <div v-else-if="!filtered.length" class="empty-state">暂无记账记录</div>
+
+        <div v-else class="ledger-list">
           <div v-for="item in filtered" :key="item.id" class="ledger-item">
             <div>
               <h4>{{ item.note }}</h4>
@@ -269,7 +485,7 @@ const removeRecord = (id: string) => {
             </div>
             <div class="ledger-actions">
               <button class="ghost task-pill" @click="openEdit(item)">编辑</button>
-              <button class="ghost task-pill danger" @click="removeRecord(item.id)">删除</button>
+              <button class="ghost task-pill danger" @click="removeRecord(item.id, $event)">删除</button>
             </div>
           </div>
         </div>
@@ -340,8 +556,9 @@ const removeRecord = (id: string) => {
           <div v-if="familyTab === 'expense'" class="family-tab-panel">
             <MemberSpendCompare
               v-model="compareMonth"
-              :members="members"
-              :records="records"
+              :members="familyMembers"
+              :records="familySummaryRecords"
+              :summary="familySummary"
               mode="expense"
               title="家庭成员月度支出对比"
               subtitle="全体成员汇总"
@@ -351,8 +568,9 @@ const removeRecord = (id: string) => {
           <div v-else-if="familyTab === 'income'" class="family-tab-panel">
             <MemberSpendCompare
               v-model="compareMonth"
-              :members="members"
-              :records="records"
+              :members="familyMembers"
+              :records="familySummaryRecords"
+              :summary="familySummary"
               mode="income"
               title="家庭成员月度收入对比"
               subtitle="全体成员汇总"
@@ -362,13 +580,26 @@ const removeRecord = (id: string) => {
           <div v-else class="family-tab-panel">
             <div class="family-category">
               <div class="family-category-head">{{ compareMonth }} · 家庭支出分类</div>
-              <div class="family-category-list">
-                <div v-for="item in familyCategoryTotals" :key="item.category" class="family-category-item">
-                  <div class="family-category-name">{{ item.category }}</div>
-                  <div class="family-category-bar">
-                    <div class="family-category-fill" :style="{ width: item.percent + '%' }"></div>
+              <div class="family-category-body">
+                <div class="family-waffle-wrap">
+                  <div class="family-waffle">
+                    <div
+                      v-for="(tile, idx) in familyWaffle.tiles"
+                      :key="idx"
+                      class="waffle-tile"
+                      :style="{ background: tile.color }"
+                      :title="tile.category"
+                    ></div>
                   </div>
-                  <div class="family-category-value">¥ {{ item.total }}</div>
+                </div>
+                <div class="family-waffle-total">支出总额 ¥ {{ formatAmount(totalExpense) }}</div>
+
+                <div class="family-waffle-legend">
+                  <div v-for="item in familyWaffle.legend" :key="item.category" class="family-waffle-item">
+                    <span class="dot" :style="{ background: item.color }"></span>
+                    <span class="name">{{ item.category }}</span>
+                    <span class="value">{{ item.percent }}%</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -378,3 +609,133 @@ const removeRecord = (id: string) => {
     </Transition>
   </div>
 </template>
+
+<style scoped>
+.ledger-content {
+  gap: 20px;
+}
+
+.ledger-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ledger-stat-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ledger-stat-grid .stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ledger-stat-grid .stat-card strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-chart {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: var(--card-pad);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.chart-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chart-summary h3 {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 120px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.chart-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+.chart-label .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.chart-bar {
+  height: 8px;
+  background: color-mix(in srgb, var(--border) 50%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.chart-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.chart-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.rose-empty {
+  padding: 18px;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px dashed color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+@media (max-width: 1024px) {
+  .ledger-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ledger-chart {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .ledger-stat-grid {
+    grid-template-columns: 1fr;
+  }
+  .ledger-actions {
+    width: 100%;
+  }
+  .ledger-actions button {
+    flex: 1 1 140px;
+  }
+  .chart-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .chart-value {
+    justify-self: end;
+  }
+}
+</style>

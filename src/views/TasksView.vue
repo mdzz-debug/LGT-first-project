@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import { Icon, addCollection } from '@iconify/vue'
 import mdi from '@iconify-json/mdi/icons.json'
 import AppHeader from '../components/AppHeader.vue'
+import { apiFetch } from '../api/client'
+import { pushToast } from '../composables/useToast'
+import { useRecycleFly } from '../composables/useRecycleFly'
 
 addCollection(mdi)
 
 type Task = {
-  id: string
+  id: string | number
   title: string
   category: string
   priority: 'P1' | 'P2' | 'P3'
@@ -19,50 +22,17 @@ type Task = {
 const categories = ['家庭', '工作', '健康', '学习']
 const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
 
-const tasks = ref<Task[]>([
-  {
-    id: 't1',
-    title: '梳理下周家庭计划与预算',
-    category: '家庭',
-    priority: 'P1',
-    due: '今天 18:00',
-    done: false,
-    icon: 'mdi:home-heart'
-  },
-  {
-    id: 't2',
-    title: '完成客户需求梳理 & 会议纪要',
-    category: '工作',
-    priority: 'P1',
-    due: '今天 20:00',
-    done: true,
-    icon: 'mdi:briefcase-outline'
-  },
-  {
-    id: 't3',
-    title: '30 分钟力量训练',
-    category: '健康',
-    priority: 'P2',
-    due: '今晚',
-    done: false,
-    icon: 'mdi:dumbbell'
-  },
-  {
-    id: 't4',
-    title: '读完《高效能人士》第四章',
-    category: '学习',
-    priority: 'P3',
-    due: '明天',
-    done: false,
-    icon: 'mdi:book-open-page-variant'
-  }
-])
+const tasks = ref<Task[]>([])
+const loading = shallowRef(false)
+const error = shallowRef('')
 
 const query = ref('')
 const statusFilter = ref<'all' | 'todo' | 'done'>('all')
 const priorityFilter = ref<'all' | Task['priority']>('all')
 const modalOpen = ref(false)
-const editingId = ref<string | null>(null)
+const editingId = ref<string | number | null>(null)
+
+const { flyToRecycle } = useRecycleFly()
 const form = ref<{
   title: string
   category: string
@@ -119,31 +89,92 @@ const openEdit = (task: Task) => {
   modalOpen.value = true
 }
 
-const saveTask = () => {
-  if (!form.value.title.trim()) return
-  if (editingId.value) {
-    tasks.value = tasks.value.map((task) =>
-      task.id === editingId.value
-        ? { ...task, ...form.value }
-        : task
-    )
-  } else {
-    tasks.value.unshift({
-      id: `t${Date.now()}`,
-      title: form.value.title,
-      category: form.value.category,
-      priority: form.value.priority,
-      due: form.value.due || '今天',
-      done: false,
-      icon: form.value.icon
+const fetchTasks = async () => {
+  loading.value = true
+  error.value = ''
+  try {
+    const data = await apiFetch<any[]>('/tasks')
+    tasks.value = data.map((item) => ({
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      priority: item.priority,
+      due: item.due_date ?? item.due,
+      done: !!item.done,
+      icon: item.icon || 'mdi:checkbox-marked-circle-outline'
+    }))
+  } catch (err: any) {
+    error.value = err?.message || '任务加载失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+const toggleDone = async (task: Task) => {
+  task.done = !task.done
+  try {
+    await apiFetch(`/tasks/${task.id}`, {
+      method: 'PATCH',
+      body: { done: task.done }
     })
+    await fetchTasks()
+  } catch {
+    pushToast('任务状态更新失败', 'error')
+  }
+}
+
+const saveTask = async () => {
+  if (!form.value.title.trim()) return
+  try {
+    if (editingId.value) {
+      await apiFetch(`/tasks/${editingId.value}`, {
+        method: 'PATCH',
+        body: {
+          title: form.value.title,
+          category: form.value.category,
+          priority: form.value.priority,
+          due: form.value.due,
+          icon: form.value.icon
+        }
+      })
+      pushToast('任务已更新', 'success')
+    } else {
+      await apiFetch('/tasks', {
+        method: 'POST',
+        body: {
+          title: form.value.title,
+          category: form.value.category,
+          priority: form.value.priority,
+          due: form.value.due,
+          icon: form.value.icon
+        }
+      })
+      pushToast('任务已创建', 'success')
+    }
+    await fetchTasks()
+  } catch {
+    pushToast('任务保存失败', 'error')
   }
   modalOpen.value = false
 }
 
-const removeTask = (id: string) => {
-  tasks.value = tasks.value.filter((task) => task.id !== id)
+const removeTask = async (id: string | number, evt?: MouseEvent) => {
+  if (typeof window !== 'undefined') {
+    const ok = window.confirm('确认删除该任务吗？')
+    if (!ok) return
+  }
+  const sourceEl = (evt?.currentTarget as HTMLElement | null)?.closest('.task-item') as HTMLElement | null
+  flyToRecycle(sourceEl)
+  try {
+    await apiFetch(`/tasks/${id}`, { method: 'DELETE' })
+    await fetchTasks()
+    pushToast('任务已删除（已进入回收站）', 'success')
+  } catch {
+    pushToast('任务删除失败', 'error')
+  }
 }
+
+onMounted(fetchTasks)
 </script>
 
 <template>
@@ -188,9 +219,13 @@ const removeTask = (id: string) => {
           <div class="stat-card"><span>逾期</span><strong>{{ overdue }}</strong></div>
         </div>
 
-        <ul class="task-list">
+        <div v-if="loading" class="empty-state">加载中…</div>
+        <div v-else-if="error" class="empty-state">{{ error }}</div>
+        <div v-else-if="!filteredTasks.length" class="empty-state">暂无任务，点击右上角新建</div>
+
+        <ul v-else class="task-list">
           <li v-for="task in filteredTasks" :key="task.id" class="task-item">
-            <div class="task-icon">
+            <div class="task-icon" @click="toggleDone(task)">
               <Icon :icon="task.icon" />
             </div>
             <div class="task-body">
@@ -206,7 +241,7 @@ const removeTask = (id: string) => {
                 {{ task.done ? '已完成' : '进行中' }}
               </span>
               <button class="ghost task-pill" @click="openEdit(task)">编辑</button>
-              <button class="ghost task-pill danger" @click="removeTask(task.id)">删除</button>
+              <button class="ghost task-pill danger" @click="removeTask(task.id, $event)">删除</button>
             </div>
           </li>
         </ul>

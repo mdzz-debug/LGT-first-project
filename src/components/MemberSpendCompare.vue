@@ -2,26 +2,38 @@
 import { computed } from 'vue'
 
 type Member = {
-  id: string
+  id: string | number
   name: string
-  avatar?: string
+  avatar?: string | null
 }
 
 type Record = {
-  memberId: string
+  memberId?: string | number
   type: 'expense' | 'income'
   amount: number
   date: string
 }
 
+type SummaryMember = Member & {
+  expense?: number
+  income?: number
+}
+
+type Summary = {
+  expenseTotal?: number
+  incomeTotal?: number
+  members?: SummaryMember[]
+}
+
 const monthModel = defineModel<string>({ required: true })
 
 const props = defineProps<{
-  members: Member[]
-  records: Record[]
+  members?: Member[]
+  records?: Record[]
   mode?: 'expense' | 'income'
   title?: string
   subtitle?: string
+  summary?: Summary | null
 }>()
 
 const parseMonth = (value: string): { year: number; month: number } => {
@@ -42,18 +54,53 @@ const monthLabel = computed(() => {
 
 const mode = computed(() => props.mode ?? 'expense')
 
+const summaryMembers = computed(() => props.summary?.members ?? [])
+const propMembers = computed(() => props.members ?? [])
+
 const monthRecords = computed(() =>
-  props.records.filter((item) => item.date.startsWith(monthModel.value))
+  (props.records ?? []).filter((item) => item.date.startsWith(monthModel.value))
 )
 
-const familyTotal = computed(() =>
-  monthRecords.value
+const useSummary = computed(() => summaryMembers.value.length > 0)
+
+const familyTotal = computed(() => {
+  if (useSummary.value) {
+    if (mode.value === 'expense') {
+      if (typeof props.summary?.expenseTotal === 'number') {
+        return props.summary.expenseTotal
+      }
+      return summaryMembers.value.reduce((sum, item) => sum + Number(item.expense ?? 0), 0)
+    }
+    if (typeof props.summary?.incomeTotal === 'number') {
+      return props.summary.incomeTotal
+    }
+    return summaryMembers.value.reduce((sum, item) => sum + Number(item.income ?? 0), 0)
+  }
+  return monthRecords.value
     .filter((item) => item.type === mode.value)
     .reduce((sum, item) => sum + item.amount, 0)
-)
+})
 
 const memberTotals = computed(() => {
-  const rows = props.members.map((member) => {
+  if (useSummary.value) {
+    const rows = summaryMembers.value.map((member) => {
+      const total = mode.value === 'expense'
+        ? Number(member.expense ?? 0)
+        : Number(member.income ?? 0)
+      return { ...member, total }
+    })
+    const max = Math.max(1, ...rows.map((row) => row.total))
+    return rows.map((row) => {
+      const ratio = max ? row.total / max : 0
+      return {
+        ...row,
+        percent: Math.round(ratio * 100),
+        blocks: Math.round(ratio * 10)
+      }
+    })
+  }
+
+  const rows = propMembers.value.map((member) => {
     const total = monthRecords.value
       .filter((item) => item.memberId === member.id)
       .filter((item) => item.type === mode.value)
@@ -61,10 +108,14 @@ const memberTotals = computed(() => {
     return { ...member, total }
   })
   const max = Math.max(1, ...rows.map((row) => row.total))
-  return rows.map((row) => ({
-    ...row,
-    percent: Math.round((row.total / max) * 100)
-  }))
+  return rows.map((row) => {
+    const ratio = max ? row.total / max : 0
+    return {
+      ...row,
+      percent: Math.round(ratio * 100),
+      blocks: Math.round(ratio * 10)
+    }
+  })
 })
 
 const prevMonth = () => {
@@ -109,8 +160,13 @@ const nextMonth = () => {
           </span>
           <span>{{ item.name }}</span>
         </div>
-        <div class="member-compare-bar">
-          <div class="member-compare-fill" :style="{ width: item.percent + '%' }"></div>
+        <div class="member-compare-dots">
+          <span
+            v-for="i in 10"
+            :key="i"
+            class="member-dot"
+            :class="i <= (item.blocks ?? 0) && 'active'"
+          ></span>
         </div>
         <div class="member-compare-value">¥ {{ item.total }}</div>
       </div>

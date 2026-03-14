@@ -5,13 +5,44 @@ import { Icon, addCollection } from '@iconify/vue'
 import mdi from '@iconify-json/mdi/icons.json'
 import AppHeader from '../components/AppHeader.vue'
 import CalendarModal, { type CalendarEvent } from '../components/CalendarModal.vue'
+import { apiFetch } from '../api/client'
+import { pushToast } from '../composables/useToast'
 
 addCollection(mdi)
 
 const router = useRouter()
 
+const currentName = ref('')
+const greetingText = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 11) return '早安'
+  if (hour < 14) return '中午好'
+  if (hour < 18) return '下午好'
+  if (hour < 23) return '晚上好'
+  return '夜深了'
+})
+
+const loadCurrentUser = async () => {
+  const cached = localStorage.getItem('pulse.user')
+  if (cached) {
+    try {
+      const user = JSON.parse(cached)
+      currentName.value = user.nickname || user.account || currentName.value
+    } catch {
+      // ignore
+    }
+  }
+  try {
+    const user = await apiFetch<any>('/users/me')
+    currentName.value = user.nickname || user.account || currentName.value
+  } catch {
+    // ignore
+  }
+  if (!currentName.value) currentName.value = '朋友'
+}
+
 type Task = {
-  id: string
+  id: string | number
   title: string
   category: string
   priority: 'P1' | 'P2' | 'P3'
@@ -21,7 +52,7 @@ type Task = {
 }
 
 type Habit = {
-  id: string
+  id: string | number
   name: string
   streak: number
   icon: string
@@ -47,78 +78,45 @@ type PomodoroState = {
 const categories = ['家庭', '工作', '健康', '学习']
 const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
 
-const tasks = ref<Task[]>([
-  {
-    id: 't1',
-    title: '梳理下周家庭计划与预算',
-    category: '家庭',
-    priority: 'P1',
-    due: '今天 18:00',
-    done: false,
-    icon: 'mdi:home-heart'
-  },
-  {
-    id: 't2',
-    title: '完成客户需求梳理 & 会议纪要',
-    category: '工作',
-    priority: 'P1',
-    due: '今天 20:00',
-    done: true,
-    icon: 'mdi:briefcase-outline'
-  },
-  {
-    id: 't3',
-    title: '30 分钟力量训练',
-    category: '健康',
-    priority: 'P2',
-    due: '今晚',
-    done: false,
-    icon: 'mdi:dumbbell'
-  },
-  {
-    id: 't4',
-    title: '读完《高效能人士》第四章',
-    category: '学习',
-    priority: 'P3',
-    due: '明天',
-    done: false,
-    icon: 'mdi:book-open-page-variant'
-  }
-])
+const tasks = ref<Task[]>([])
 
-const habits = ref<Habit[]>([
-  { id: 'h1', name: '晨间拉伸', streak: 8, icon: 'mdi:weather-sunny', done: true },
-  { id: 'h2', name: '英语 15 分钟', streak: 12, icon: 'mdi:translate', done: false },
-  { id: 'h3', name: '阅读 20 页', streak: 5, icon: 'mdi:book-open-variant', done: false }
-])
+const habits = ref<Habit[]>([])
 
-const toggleHabitCheck = (habit: Habit) => {
-  habit.done = !habit.done
+const toggleHabitCheck = async (habit: Habit) => {
+  const nextDone = !habit.done
+  habit.done = nextDone
   habit.streak = habit.done ? habit.streak + 1 : Math.max(habit.streak - 1, 0)
+  try {
+    await apiFetch(`/habits/${habit.id}`, {
+      method: 'PATCH',
+      body: {
+        done: nextDone
+      }
+    })
+  } catch {
+    pushToast('习惯状态更新失败', 'error')
+  }
 }
 
 type UpcomingStatus = 'todo' | 'done' | 'overdue'
 
 type UpcomingItem = {
+  id: number | string
   time: string
   title: string
   icon: string
   date: string
   status: UpcomingStatus
+  sourceType?: 'task' | 'habit'
 }
 
-const upcoming = ref<UpcomingItem[]>([
-  { time: '09:00', title: '家庭采购清单检查', icon: 'mdi:cart-outline', date: '2026-03-13', status: 'todo' },
-  { time: '14:00', title: '英语跟读 20 分钟', icon: 'mdi:translate', date: '2026-03-13', status: 'done' },
-  { time: '19:30', title: '团队复盘会议', icon: 'mdi:account-group-outline', date: '2026-03-13', status: 'overdue' },
-  { time: '21:00', title: '阅读 30 分钟', icon: 'mdi:book-open-variant', date: '2026-03-14', status: 'todo' }
-])
+const upcoming = ref<UpcomingItem[]>([])
 
 const query = ref('')
 const statusFilter = ref<'all' | 'todo' | 'done'>('all')
 const priorityFilter = ref<'all' | Task['priority']>('all')
 const modalOpen = ref(false)
-const editingId = ref<string | null>(null)
+const editingId = ref<string | number | null>(null)
 const calendarOpen = shallowRef(false)
 const form = ref<{
   title: string
@@ -298,14 +296,32 @@ const filteredTasks = computed(() => {
   })
 })
 
+const overview = ref({
+  completionRate: 0,
+  focusMinutes: 0,
+  todoCount: 0,
+  teamMembers: 0
+})
+
 const completed = computed(() => tasks.value.filter((t) => t.done).length)
 const completion = computed(() =>
-  tasks.value.length ? Math.round((completed.value / tasks.value.length) * 100) : 0
+  tasks.value.length ? Math.round((completed.value / tasks.value.length) * 100) : overview.value.completionRate
 )
-const focusMinutes = computed(() => completed.value * 25)
+const focusMinutes = computed(() =>
+  tasks.value.length ? completed.value * 25 : overview.value.focusMinutes
+)
 
-const toggleDone = (task: Task) => {
+const toggleDone = async (task: Task) => {
   task.done = !task.done
+  try {
+    await apiFetch(`/tasks/${task.id}`, {
+      method: 'PATCH',
+      body: { done: task.done }
+    })
+    await fetchOverview()
+  } catch {
+    pushToast('任务状态更新失败', 'error')
+  }
 }
 
 
@@ -322,6 +338,73 @@ const openCreate = () => {
   modalOpen.value = true
 }
 
+const fetchTasks = async () => {
+  try {
+    const data = await apiFetch<Task[]>('/dashboard/tasks')
+    tasks.value = data.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      priority: item.priority,
+      due: item.due_date ?? item.due,
+      done: !!item.done,
+      icon: item.icon || 'mdi:checkbox-marked-circle-outline'
+    }))
+  } catch {
+    pushToast('任务加载失败', 'error')
+  }
+}
+
+const fetchOverview = async () => {
+  try {
+    overview.value = await apiFetch('/dashboard/overview')
+  } catch {
+    // ignore
+  }
+}
+
+const fetchHabits = async () => {
+  try {
+    const data = await apiFetch<any[]>('/habits')
+    habits.value = data.slice(0, 4).map((h) => ({
+      id: h.id,
+      name: h.name,
+      streak: Number(h.streak || 0),
+      icon: h.icon || 'mdi:check-circle-outline',
+      done: !!h.done
+    }))
+  } catch {
+    // ignore
+  }
+}
+
+const fetchUpcoming = async () => {
+  try {
+    const events = await apiFetch<any[]>('/calendar/events')
+    upcoming.value = events.map((item) => {
+      const sourceType = (item.source_type || item.sourceType) as UpcomingItem['sourceType']
+      const icon =
+        sourceType === 'task'
+          ? 'mdi:checkbox-marked-circle-outline'
+          : sourceType === 'habit'
+            ? 'mdi:leaf-circle-outline'
+            : item.icon || 'mdi:calendar-check'
+
+      return {
+        id: item.id,
+        time: item.time || '全天',
+        title: item.title,
+        icon,
+        date: item.date,
+        status: (item.status || 'todo') as UpcomingStatus,
+        sourceType
+      }
+    })
+  } catch {
+    // ignore
+  }
+}
+
 const openEdit = (task: Task) => {
   editingId.value = task.id
   form.value = {
@@ -334,30 +417,46 @@ const openEdit = (task: Task) => {
   modalOpen.value = true
 }
 
-const saveTask = () => {
+const saveTask = async () => {
   if (!form.value.title.trim()) return
-  if (editingId.value) {
-    tasks.value = tasks.value.map((task) =>
-      task.id === editingId.value
-        ? { ...task, ...form.value }
-        : task
-    )
-  } else {
-    tasks.value.unshift({
-      id: `t${Date.now()}`,
-      title: form.value.title,
-      category: form.value.category,
-      priority: form.value.priority,
-      due: form.value.due || '今天',
-      done: false,
-      icon: form.value.icon
-    })
+  try {
+    if (editingId.value) {
+      await apiFetch(`/tasks/${editingId.value}`, {
+        method: 'PATCH',
+        body: {
+          title: form.value.title,
+          category: form.value.category,
+          priority: form.value.priority,
+          due: form.value.due,
+          icon: form.value.icon
+        }
+      })
+    } else {
+      await apiFetch('/tasks', {
+        method: 'POST',
+        body: {
+          title: form.value.title,
+          category: form.value.category,
+          priority: form.value.priority,
+          due: form.value.due,
+          icon: form.value.icon
+        }
+      })
+    }
+    await fetchTasks()
+  } catch {
+    // ignore
   }
   modalOpen.value = false
 }
 
-const removeTask = (id: string) => {
-  tasks.value = tasks.value.filter((task) => task.id !== id)
+const removeTask = async (id: string | number) => {
+  try {
+    await apiFetch(`/tasks/${id}`, { method: 'DELETE' })
+    await fetchTasks()
+  } catch {
+    // ignore
+  }
 }
 
 const goWeeklyReport = () => {
@@ -378,8 +477,18 @@ const getUpcomingStatusLabel = (status: UpcomingStatus) => {
   return '待办'
 }
 
-const toggleUpcomingStatus = (item: UpcomingItem) => {
+const toggleUpcomingStatus = async (item: UpcomingItem) => {
   item.status = item.status === 'done' ? 'todo' : 'done'
+  try {
+    await apiFetch(`/calendar/events/${item.id}`, {
+      method: 'PATCH',
+      body: {
+        status: item.status
+      }
+    })
+  } catch {
+    // ignore
+  }
 }
 
 const calendarEvents = computed<CalendarEvent[]>(() =>
@@ -387,11 +496,12 @@ const calendarEvents = computed<CalendarEvent[]>(() =>
     date: item.date,
     title: item.title,
     time: item.time,
-    status: item.status
+    status: item.status,
+    sourceType: item.sourceType
   }))
 )
 
-onMounted(() => {
+onMounted(async () => {
   if (typeof window === 'undefined') return
   const params = new URLSearchParams(window.location.search)
   if (params.get('pomodoro') === '1') {
@@ -400,6 +510,8 @@ onMounted(() => {
   if (params.get('calendar') === '1') {
     calendarOpen.value = true
   }
+
+  await Promise.all([loadCurrentUser(), fetchOverview(), fetchTasks(), fetchHabits(), fetchUpcoming()])
 })
 
 onUnmounted(() => {
@@ -417,7 +529,7 @@ onUnmounted(() => {
           <div class="overview-header">
             <div>
               <p class="kicker">今日概览</p>
-              <h1>早安，罗董</h1>
+              <h1>{{ greetingText }}，{{ currentName }}</h1>
               <p class="muted">聚焦关键任务，清晰掌控节奏与优先级。</p>
             </div>
             <div class="overview-actions">
@@ -451,7 +563,7 @@ onUnmounted(() => {
             <div class="overview-card">
               <div>
                 <p class="muted">待办提醒</p>
-                <h2>{{ tasks.length - completed }} 项</h2>
+                <h2>{{ tasks.length ? tasks.length - completed : overview.todoCount }} 项</h2>
               </div>
               <span class="overview-watermark">
                 <Icon icon="mdi:clipboard-check-outline" />
@@ -460,7 +572,7 @@ onUnmounted(() => {
             <div class="overview-card">
               <div>
                 <p class="muted">团队/家庭</p>
-                <h2>4 人</h2>
+                <h2>{{ overview.teamMembers || 0 }} 人</h2>
               </div>
               <span class="overview-watermark">
                 <Icon icon="mdi:account-group-outline" />
