@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, shallowRef } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { Icon, addCollection } from '@iconify/vue'
 import mdi from '@iconify-json/mdi/icons.json'
-import AppHeader from '../components/AppHeader.vue'
+import { useTheme } from '../composables/useTheme'
 import CalendarModal, { type CalendarEvent } from '../components/CalendarModal.vue'
 import { apiFetch } from '../api/client'
 import { pushToast } from '../composables/useToast'
@@ -11,6 +11,17 @@ import { pushToast } from '../composables/useToast'
 addCollection(mdi)
 
 const router = useRouter()
+const route = useRoute()
+const { theme } = useTheme()
+
+const navItems = [
+  { label: '总览', path: '/dashboard', icon: 'mdi:view-dashboard-outline' },
+  { label: '收支', path: '/ledger', icon: 'mdi:wallet-outline' },
+  { label: '待办', path: '/tasks', icon: 'mdi:clipboard-check-outline' },
+  { label: '习惯', path: '/habits', icon: 'mdi:leaf-outline' },
+  { label: '洞察', path: '/stats', icon: 'mdi:chart-line' }
+]
+
 
 const currentName = ref('')
 const greetingText = computed(() => {
@@ -689,127 +700,121 @@ onUnmounted(() => {
 })
 </script>
 
-<template>
-  <div class="page dashboard-v2">
-    <AppHeader />
 
-    <main class="dash-shell">
-      <header class="dash-top">
-        <div class="dash-title">
-          <p class="eyebrow">My Dashboard</p>
-          <h1>{{ greetingText }}，{{ currentName }}</h1>
-          <p class="muted">用财务节奏与任务优先级校准今天的行动。</p>
+<template>
+  <div class="dashboard-layout">
+    <aside class="dashboard-nav">
+      <div class="nav-brand">
+        <span class="logo-dot"></span>
+        <span>PulseList</span>
+      </div>
+      <nav class="nav-items">
+        <button
+          v-for="item in navItems"
+          :key="item.path"
+          class="nav-item"
+          :class="route.path === item.path && 'active'"
+          @click="router.push(item.path)"
+        >
+          <Icon :icon="item.icon" />
+        </button>
+      </nav>
+      <div class="nav-footer">
+        <button class="nav-item">
+          <Icon icon="mdi:cog-outline" />
+        </button>
+      </div>
+    </aside>
+
+    <div class="dashboard-content">
+      <header class="dashboard-topbar">
+        <div class="top-search">
+          <Icon icon="mdi:magnify" />
+          <input v-model="query" placeholder="Search payment" />
         </div>
-        <div class="dash-actions">
-          <div class="dash-search">
-            <Icon icon="mdi:magnify" />
-            <input v-model="query" placeholder="搜索任务 / 账单" />
+        <div class="top-actions">
+          <div class="theme-switch">
+            <button class="chip" :class="theme === 'light' && 'active'" @click="theme = 'light'">浅色</button>
+            <button class="chip" :class="theme === 'dark' && 'active'" @click="theme = 'dark'">暗黑</button>
+            <button class="chip" :class="theme === 'warm' && 'active'" @click="theme = 'warm'">暖色</button>
           </div>
-          <button class="primary" @click="openCreate">新建任务</button>
-          <button class="ghost" @click="openPomodoro">开始番茄</button>
+          <div class="user-chip">
+            <span>Hi {{ currentName }}</span>
+            <div class="avatar"></div>
+          </div>
         </div>
       </header>
 
-      <section class="dash-kpis">
-        <div class="kpi-card">
-          <p class="muted">今日支出</p>
-          <h2>¥ {{ todayExpense.toFixed(2) }}</h2>
-          <span class="kpi-badge">自动分类</span>
+      <section class="dashboard-title">
+        <div>
+          <h1>My Dashboard <span class="greeting">· {{ greetingText }}</span></h1>
+          <p class="muted">今天共 {{ todayTasks.length }} 项待办，完成度 {{ completion }}%</p>
         </div>
-        <div class="kpi-card">
-          <p class="muted">本月支出</p>
-          <h2>¥ {{ monthExpense.toFixed(2) }}</h2>
-          <span class="kpi-badge">趋势追踪</span>
-        </div>
-        <div class="kpi-card">
-          <p class="muted">待办提醒</p>
-          <h2>{{ todayTasks.length ? inProgress : overview.todoCount }} 项</h2>
-          <span class="kpi-badge">进行中</span>
-        </div>
-        <div class="kpi-card">
-          <p class="muted">完成度</p>
-          <h2>{{ completion }}%</h2>
-          <span class="kpi-badge">已完成 {{ completed }} 项</span>
+        <div class="filter-pills">
+          <button class="pill active">All</button>
+          <button class="pill">Withdrawal</button>
+          <button class="pill">Savings</button>
+          <button class="pill">Deposit</button>
         </div>
       </section>
 
-      <div class="dash-grid">
-        <section class="dash-main">
-          <div class="panel glass dash-flow">
+      <div class="dashboard-grid">
+        <section class="dashboard-main">
+          <div class="panel revenue-flow">
             <div class="panel-head">
               <div>
                 <h3>Revenue Flow</h3>
-                <p class="muted">收入与支出波动趋势（示例走势）</p>
+                <p class="muted">现金流趋势 · 示例走势</p>
               </div>
-              <div class="flow-pills">
-                <button class="ghost pill">All</button>
-                <button class="ghost pill">Withdrawal</button>
-                <button class="ghost pill">Savings</button>
-                <button class="ghost pill">Deposit</button>
-              </div>
+              <button class="ghost" @click="goWeeklyReport">View All</button>
             </div>
-
             <div class="flow-chart">
               <div v-for="bar in flowBars" :key="bar.id" class="flow-bar">
                 <span :style="{ height: bar.height + '%' }"></span>
               </div>
             </div>
+          </div>
 
-            <div class="flow-meta">
-              <div class="flow-stat">
-                <span class="dot income"></span>
-                <div>
-                  <p class="muted">Income</p>
-                  <h4>¥ {{ (monthExpense * 1.12).toFixed(2) }}</h4>
-                </div>
-              </div>
-              <div class="flow-stat">
-                <span class="dot expense"></span>
-                <div>
-                  <p class="muted">Expense</p>
+          <div class="panel available">
+            <div class="panel-head">
+              <h3>Available</h3>
+              <button class="ghost">View All</button>
+            </div>
+            <div class="available-body">
+              <div class="donut">
+                <div class="donut-center">
+                  <p>Total Expenses</p>
                   <h4>¥ {{ monthExpense.toFixed(2) }}</h4>
                 </div>
               </div>
-              <div class="flow-stat">
-                <span class="dot" style="background:#38bdf8"></span>
-                <div>
-                  <p class="muted">Focus</p>
-                  <h4>{{ focusMinutes }} min</h4>
-                </div>
+              <div class="donut-legend">
+                <div><span class="legend-dot food"></span> 餐饮</div>
+                <div><span class="legend-dot home"></span> 居家</div>
+                <div><span class="legend-dot other"></span> 其他</div>
               </div>
-              <button class="ghost" @click="goWeeklyReport">查看洞察</button>
             </div>
           </div>
 
-          <div class="panel glass dash-tasks">
-            <div class="section-title">
+          <div class="panel income-card">
+            <h4>Income</h4>
+            <h2>¥ {{ (monthExpense * 1.12).toFixed(2) }}</h2>
+            <p class="muted">This week’s income</p>
+          </div>
+
+          <div class="panel expense-card">
+            <h4>Expense</h4>
+            <h2>¥ {{ monthExpense.toFixed(2) }}</h2>
+            <p class="muted">This week’s expense</p>
+          </div>
+
+          <div class="panel tasks">
+            <div class="panel-head">
               <div>
                 <h3>今日任务</h3>
                 <p class="muted">共 {{ todayTasks.length }} 项 · 已完成 {{ completed }} · 进行中 {{ inProgress }}</p>
               </div>
-              <button class="primary task-pill" @click="openCreate">新建任务</button>
+              <button class="primary" @click="openCreate">新建任务</button>
             </div>
-
-            <div class="task-toolbar">
-              <div class="task-filters">
-                <div class="search">
-                  <Icon icon="mdi:magnify" />
-                  <input v-model="query" placeholder="搜索任务" />
-                </div>
-                <select v-model="statusFilter">
-                  <option value="all">全部</option>
-                  <option value="todo">待办</option>
-                  <option value="done">已完成</option>
-                </select>
-                <select v-model="priorityFilter">
-                  <option value="all">优先级</option>
-                  <option v-for="item in priorities" :key="item" :value="item">
-                    {{ item }}
-                  </option>
-                </select>
-              </div>
-            </div>
-
             <ul class="task-list">
               <li v-for="task in filteredTasks" :key="task.id" class="task-item">
                 <div class="task-icon" @click="toggleDone(task)">
@@ -824,43 +829,35 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <div class="task-actions">
-                  <button class="ghost task-pill" @click="openEdit(task)">编辑</button>
-                  <button class="ghost task-pill danger" @click="removeTask(task.id)">删除</button>
+                  <button class="ghost" @click="openEdit(task)">编辑</button>
+                  <button class="ghost danger" @click="removeTask(task.id)">删除</button>
                 </div>
               </li>
             </ul>
           </div>
         </section>
 
-        <aside class="dash-side">
-          <section class="panel glass dash-card">
-            <div class="card-top">
-              <div>
-                <p class="muted">My Card</p>
-                <h3>家庭资金池</h3>
-              </div>
-              <span class="chip">VISA</span>
+        <aside class="dashboard-right">
+          <div class="panel card-stack">
+            <div class="panel-head">
+              <h3>My Card</h3>
+              <button class="ghost">View All</button>
             </div>
-            <div class="card-balance">
-              <p class="muted">Available Balance</p>
+            <div class="card-preview">
+              <p>Total Balance</p>
               <h2>¥ {{ (monthExpense * 3.2 + 1280).toFixed(2) }}</h2>
-            </div>
-            <div class="card-meta">
-              <div>
-                <p class="muted">Card Holder</p>
-                <strong>{{ currentName }}</strong>
-              </div>
-              <div>
-                <p class="muted">Valid</p>
-                <strong>12/28</strong>
+              <p class="muted">今日支出 ¥ {{ todayExpense.toFixed(2) }}</p>
+              <div class="card-row">
+                <span>**** 2323</span>
+                <span>08/24</span>
               </div>
             </div>
-          </section>
+          </div>
 
-          <section class="panel glass dash-transactions">
-            <div class="section-title">
+          <div class="panel transactions">
+            <div class="panel-head">
               <h3>Transactions</h3>
-              <button class="ghost" @click="$router.push('/ledger')">更多</button>
+              <button class="ghost" @click="router.push('/ledger')">View All</button>
             </div>
             <div v-if="!recentLedger.length" class="empty-state">暂无记录</div>
             <ul v-else class="tx-list">
@@ -877,10 +874,10 @@ onUnmounted(() => {
                 </div>
               </li>
             </ul>
-          </section>
+          </div>
 
-          <section class="panel glass dash-habits">
-            <div class="section-title">
+          <div class="panel habits">
+            <div class="panel-head">
               <h3>习惯追踪</h3>
               <button class="ghost" @click="goHabits">编辑</button>
             </div>
@@ -900,61 +897,36 @@ onUnmounted(() => {
                 </button>
               </div>
             </div>
-          </section>
+          </div>
 
-          <section class="panel glass dash-upcoming">
-            <div class="section-title">
-              <h3>待办安排</h3>
+          <div class="panel schedule">
+            <div class="panel-head">
+              <h3>Schedule</h3>
               <button class="ghost" @click="openCalendar">日历</button>
             </div>
-            <div class="upcoming-list">
-              <div v-if="!todayItems.length" class="empty-state">暂无安排</div>
-              <div v-else>
-                <div v-if="mustTodayItems.length" class="upcoming-group">
-                  <div class="upcoming-group-title">今日必做</div>
-                  <div
-                    v-for="item in mustTodayItems"
-                    :key="item.id"
-                    class="upcoming-item"
-                    @click="toggleUpcomingStatus(item)"
-                  >
-                    <span class="upcoming-stamp" :class="`status-${resolveStatus(item)}`">
-                      {{ getUpcomingStatusLabel(resolveStatus(item)) }}
-                    </span>
-                    <div class="upcoming-title">
-                      <Icon :icon="item.icon" />
-                      {{ item.title }}
-                    </div>
-                  </div>
-                </div>
-
-                <div v-if="hasUpcomingSplit" class="upcoming-divider"></div>
-
-                <div v-if="coverTodayItems.length" class="upcoming-group">
-                  <div class="upcoming-group-title">涵盖今日</div>
-                  <div
-                    v-for="item in coverTodayItems"
-                    :key="item.id"
-                    class="upcoming-item"
-                    @click="toggleUpcomingStatus(item)"
-                  >
-                    <span class="upcoming-stamp" :class="`status-${resolveStatus(item)}`">
-                      {{ getUpcomingStatusLabel(resolveStatus(item)) }}
-                    </span>
-                    <div class="upcoming-title">
-                      <Icon :icon="item.icon" />
-                      {{ item.title }}
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div class="schedule-stats">
+              <span>待办 {{ todayTasks.length }} 项</span>
+              <span>专注 {{ focusMinutes }} min</span>
             </div>
-          </section>
+            <div v-if="todayItems.length" class="schedule-list">
+              <div
+                v-for="item in todayItems.slice(0, 3)"
+                :key="item.id"
+                class="schedule-item"
+                @click="toggleUpcomingStatus(item)"
+              >
+                <span class="schedule-status">{{ getUpcomingStatusLabel(resolveStatus(item)) }}</span>
+                <span class="schedule-title">{{ item.title }}</span>
+              </div>
+              <div v-if="hasUpcomingSplit" class="muted">含跨日安排</div>
+            </div>
+            <div v-else class="muted">暂无安排</div>
+            <button class="primary" @click="openPomodoro">开始专注</button>
+          </div>
         </aside>
       </div>
-    </main>
+    </div>
 
-    <!-- Modals retained to avoid dead code + keep UX parity -->
     <Transition name="backdrop-fade">
       <div v-if="modalOpen" class="modal-backdrop" @click.self="modalOpen = false">
         <div class="modal">
@@ -1036,273 +1008,317 @@ onUnmounted(() => {
 
 
 <style scoped>
-.dashboard-v2 {
-  color: var(--text);
-}
-
-.dash-shell {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 28px 24px 96px;
+.dashboard-layout {
   display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
   gap: 24px;
+  padding: 24px;
 }
 
-.dash-top {
+.dashboard-nav {
+  background: rgba(10, 14, 16, 0.9);
+  border-radius: 24px;
+  padding: 18px 10px;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-.dash-title h1 {
-  font-size: 28px;
-  margin-top: 6px;
-}
-
-.dash-actions {
-  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 18px;
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nav-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.logo-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #31d0a0, #6ee7b7);
+  box-shadow: 0 6px 18px rgba(49, 208, 160, 0.4);
+}
+
+.nav-items {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+.nav-item {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
+  border: 1px solid transparent;
+}
+
+.nav-item.active {
+  background: rgba(49, 208, 160, 0.18);
+  color: #e2f9f3;
+  border-color: rgba(49, 208, 160, 0.3);
+  box-shadow: 0 10px 20px rgba(49, 208, 160, 0.2);
+}
+
+.nav-footer {
+  margin-top: auto;
+}
+
+.dashboard-content {
+  display: grid;
+  gap: 22px;
+}
+
+.dashboard-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
-.dash-search {
+.top-search {
+  flex: 1;
+  max-width: 420px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
-  border-radius: 14px;
-  background: var(--input-bg);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  min-width: 240px;
-  box-shadow: var(--shadow-soft);
+  padding: 10px 16px;
+  border-radius: 18px;
+  background: rgba(10, 14, 16, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.dash-search input {
-  border: none;
+.top-search input {
+  flex: 1;
   background: transparent;
+  border: none;
+  color: var(--text);
   outline: none;
-  color: var(--input-text);
-  width: 180px;
 }
 
-.dash-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.top-actions {
+  display: flex;
+  align-items: center;
   gap: 16px;
 }
 
-.kpi-card {
-  padding: 18px;
-  border-radius: 18px;
-  background: var(--glass);
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(16px) saturate(140%);
+.theme-switch {
+  display: flex;
+  gap: 8px;
 }
 
-.kpi-card h2 {
-  margin-top: 8px;
-  font-size: 20px;
+.theme-switch .chip {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5f5;
 }
 
-.kpi-badge {
-  display: inline-flex;
-  margin-top: 10px;
-  padding: 4px 10px;
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--primary) 18%, transparent);
-  font-size: 12px;
-  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.dash-grid {
+.user-chip .avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #38bdf8, #a78bfa);
+}
+
+.dashboard-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.dashboard-title h1 {
+  font-size: 30px;
+}
+
+.filter-pills {
+  display: flex;
+  gap: 10px;
+}
+
+.pill {
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5f5;
+}
+
+.pill.active {
+  background: rgba(49, 208, 160, 0.3);
+  color: #e2f9f3;
+}
+
+.dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  gap: 24px;
-}
-
-.dash-main {
-  display: grid;
-  gap: 24px;
+  gap: 22px;
 }
 
 .panel {
-  padding: 20px;
-  border-radius: var(--radius-lg);
+  background: rgba(17, 24, 28, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 24px;
+  padding: 18px;
+  box-shadow: 0 20px 30px rgba(0, 0, 0, 0.25);
 }
 
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+}
+
+.revenue-flow {
+  display: grid;
   gap: 16px;
-  flex-wrap: wrap;
-}
-
-.flow-pills {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.pill {
-  height: 30px;
-  padding: 0 14px;
-  border-radius: 999px;
 }
 
 .flow-chart {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
   height: 180px;
-  margin-top: 18px;
   align-items: end;
-}
-
-.flow-bar {
-  height: 100%;
-  display: flex;
-  align-items: flex-end;
 }
 
 .flow-bar span {
   display: block;
   width: 100%;
-  border-radius: 12px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 60%, transparent), color-mix(in srgb, var(--accent) 45%, transparent));
-  box-shadow: 0 10px 20px color-mix(in srgb, var(--accent) 20%, transparent);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(129, 140, 248, 0.8), rgba(49, 208, 160, 0.2));
+  box-shadow: 0 10px 20px rgba(129, 140, 248, 0.3);
 }
 
-.flow-meta {
-  margin-top: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.flow-stat {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.flow-stat h4 {
-  margin-top: 4px;
-}
-
-.dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.dot.income {
-  background: #34d399;
-}
-
-.dot.expense {
-  background: #f97316;
-}
-
-.dash-tasks .task-list {
-  margin-top: 12px;
+.available {
   display: grid;
-  gap: 12px;
-}
-
-.dash-side {
-  display: grid;
-  gap: 20px;
-}
-
-.dash-card {
-  background: radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--accent) 25%, transparent), transparent 55%),
-    linear-gradient(135deg, rgba(15, 23, 42, 0.6), rgba(30, 41, 59, 0.9));
-  color: #f8fafc;
-}
-
-.card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.card-balance h2 {
-  margin-top: 8px;
-  font-size: 22px;
-}
-
-.card-meta {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 14px;
   gap: 16px;
 }
 
-.tx-list {
+.available-body {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  align-items: center;
+  gap: 18px;
+}
+
+.donut {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: conic-gradient(#6ee7b7 0 40%, #a78bfa 40% 70%, #38bdf8 70% 100%);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+.donut::after {
+  content: '';
+  width: 110px;
+  height: 110px;
+  background: rgba(17, 24, 28, 0.9);
+  border-radius: 50%;
+  position: absolute;
+}
+
+.donut-center {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.donut-legend {
+  display: grid;
+  gap: 10px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.legend-dot.food { background: #6ee7b7; }
+.legend-dot.home { background: #a78bfa; }
+.legend-dot.other { background: #38bdf8; }
+
+.income-card, .expense-card {
+  display: grid;
+  gap: 8px;
+}
+
+.tasks .task-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.card-stack {
+  background: linear-gradient(160deg, rgba(49, 208, 160, 0.4), rgba(15, 23, 42, 0.95));
+  color: #e2f9f3;
+}
+
+.card-preview {
+  margin-top: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 18px;
+  font-size: 12px;
+}
+
+.transactions .tx-list {
   margin-top: 12px;
   display: grid;
   gap: 10px;
 }
 
-.tx-item {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 12px;
-  align-items: center;
-}
-
-.tx-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--primary) 18%, transparent);
-}
-
-.tx-icon.income {
-  background: color-mix(in srgb, #34d399 25%, transparent);
-}
-
-.tx-icon.expense {
-  background: color-mix(in srgb, #f97316 25%, transparent);
-}
-
-.tx-amount.income {
-  color: #34d399;
-}
-
-.tx-amount.expense {
-  color: #f97316;
-}
-
 @media (max-width: 1200px) {
-  .dash-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .dash-grid {
+  .dashboard-layout {
     grid-template-columns: 1fr;
   }
-}
-
-@media (max-width: 720px) {
-  .dash-kpis {
+  .dashboard-nav {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 12px 18px;
+  }
+  .nav-items {
+    flex-direction: row;
+    flex: none;
+  }
+  .dashboard-grid {
     grid-template-columns: 1fr;
   }
-  .dash-actions {
-    width: 100%;
-  }
-  .dash-search {
-    width: 100%;
+  .available-body {
+    grid-template-columns: 1fr;
+    justify-items: center;
   }
 }
 </style>
