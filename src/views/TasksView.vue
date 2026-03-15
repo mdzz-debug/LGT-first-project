@@ -336,32 +336,7 @@ onMounted(() => {
             <h2>任务管理</h2>
             <p class="muted">共 {{ dailyTasks.length }} 项 · 已完成 {{ dailyCompleted }} · 进行中 {{ dailyInProgress }}</p>
           </div>
-          <div class="task-date">
-            <span class="date-label">日期</span>
-            <input v-model="selectedDate" type="date" class="date-input" />
-          </div>
           <button class="primary task-pill" @click="openCreate">新建任务</button>
-        </div>
-
-        <div class="task-toolbar">
-          <div class="task-filters">
-            <div class="search">
-              <Icon icon="mdi:magnify" />
-              <input v-model="query" placeholder="搜索任务" />
-            </div>
-            <select v-model="statusFilter">
-              <option value="all">全部</option>
-              <option value="todo">待办</option>
-              <option value="done">已完成</option>
-            </select>
-            <select v-model="priorityFilter">
-              <option value="all">优先级</option>
-              <option v-for="item in priorities" :key="item" :value="item">
-                {{ item }}
-              </option>
-            </select>
-          </div>
-
         </div>
 
         <div class="stat-grid compact task-stat-grid">
@@ -371,12 +346,44 @@ onMounted(() => {
           <div class="stat-card"><span>逾期</span><strong>{{ overdue }}</strong></div>
         </div>
 
-        <div v-if="loading" class="empty-state">加载中…</div>
-        <div v-else-if="error" class="empty-state">{{ error }}</div>
-        <div v-else-if="!filteredTasks.length" class="empty-state">暂无任务，点击右上角新建</div>
+        <div class="panel task-list-card">
+          <div class="task-list-head">
+            <div>
+              <h3>任务列表</h3>
+              <p class="muted">按日期查看任务</p>
+            </div>
+            <div class="task-date">
+              <span class="date-label">日期</span>
+              <input v-model="selectedDate" type="date" class="date-input" />
+            </div>
+          </div>
 
-        <ul v-else class="task-list">
-          <li v-for="task in filteredTasks" :key="task.id" class="task-item">
+          <div class="task-toolbar">
+            <div class="task-filters">
+              <div class="search">
+                <Icon icon="mdi:magnify" />
+                <input v-model="query" placeholder="搜索任务" />
+              </div>
+              <select v-model="statusFilter">
+                <option value="all">全部</option>
+                <option value="todo">待办</option>
+                <option value="done">已完成</option>
+              </select>
+              <select v-model="priorityFilter">
+                <option value="all">优先级</option>
+                <option v-for="item in priorities" :key="item" :value="item">
+                  {{ item }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div v-if="loading" class="empty-state">加载中…</div>
+          <div v-else-if="error" class="empty-state">{{ error }}</div>
+          <div v-else-if="!filteredTasks.length" class="empty-state">暂无任务，点击右上角新建</div>
+
+          <ul v-else class="task-list">
+            <li v-for="task in filteredTasks" :key="task.id" class="task-item">
             <div class="task-icon" @click="toggleDone(task)">
               <Icon :icon="getTaskIcon(task)" />
             </div>
@@ -397,6 +404,7 @@ onMounted(() => {
             </div>
           </li>
         </ul>
+        </div>
       </section>
     </main>
 
@@ -471,6 +479,22 @@ onMounted(() => {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+
+.task-list-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.task-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 @media (max-width: 720px) {
   .task-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -478,6 +502,9 @@ onMounted(() => {
   .task-date {
     width: 100%;
     justify-content: space-between;
+  }
+  .task-list-card {
+    padding: 14px;
   }
 }
 </style>
