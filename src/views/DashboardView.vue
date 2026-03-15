@@ -458,12 +458,12 @@ const fetchLedgerRecords = async () => {
 }
 
 const recentLedger = computed(() => ledgerRecords.value.slice(0, 5))
-const todayExpense = computed(() =>
+const today支出 = computed(() =>
   ledgerRecords.value
     .filter((row) => row.type === 'expense' && row.date === todayKey.value)
     .reduce((sum, row) => sum + row.amount, 0)
 )
-const monthExpense = computed(() => {
+const month支出 = computed(() => {
   const monthKey = todayKey.value.slice(0, 7)
   return ledgerRecords.value
     .filter((row) => row.type === 'expense' && row.date.startsWith(monthKey))
@@ -730,7 +730,7 @@ onUnmounted(() => {
       <header class="dashboard-topbar">
         <div class="top-search">
           <Icon icon="mdi:magnify" />
-          <input v-model="query" placeholder="Search payment" />
+          <input v-model="query" placeholder="搜索记录" />
         </div>
         <div class="top-actions">
           <div class="theme-switch">
@@ -747,14 +747,14 @@ onUnmounted(() => {
 
       <section class="dashboard-title">
         <div>
-          <h1>My Dashboard <span class="greeting">· {{ greetingText }}</span></h1>
+          <h1>总览面板 <span class="greeting">· {{ greetingText }}</span></h1>
           <p class="muted">今天共 {{ todayTasks.length }} 项待办，完成度 {{ completion }}%</p>
         </div>
         <div class="filter-pills">
-          <button class="pill active">All</button>
-          <button class="pill">Withdrawal</button>
-          <button class="pill">Savings</button>
-          <button class="pill">Deposit</button>
+          <button class="pill active">全部</button>
+          <button class="pill">支出</button>
+          <button class="pill">储蓄</button>
+          <button class="pill">入账</button>
         </div>
       </section>
 
@@ -763,10 +763,10 @@ onUnmounted(() => {
           <div class="panel revenue-flow">
             <div class="panel-head">
               <div>
-                <h3>Revenue Flow</h3>
+                <h3>收支趋势</h3>
                 <p class="muted">现金流趋势 · 示例走势</p>
               </div>
-              <button class="ghost" @click="goWeeklyReport">View All</button>
+              <button class="ghost" @click="goWeeklyReport">查看全部</button>
             </div>
             <div class="flow-chart">
               <div v-for="bar in flowBars" :key="bar.id" class="flow-bar">
@@ -777,14 +777,14 @@ onUnmounted(() => {
 
           <div class="panel available">
             <div class="panel-head">
-              <h3>Available</h3>
-              <button class="ghost">View All</button>
+              <h3>可用额度</h3>
+              <button class="ghost">查看全部</button>
             </div>
             <div class="available-body">
               <div class="donut">
                 <div class="donut-center">
-                  <p>Total Expenses</p>
-                  <h4>¥ {{ monthExpense.toFixed(2) }}</h4>
+                  <p>Total 支出s</p>
+                  <h4>¥ {{ month支出.toFixed(2) }}</h4>
                 </div>
               </div>
               <div class="donut-legend">
@@ -796,15 +796,15 @@ onUnmounted(() => {
           </div>
 
           <div class="panel income-card">
-            <h4>Income</h4>
-            <h2>¥ {{ (monthExpense * 1.12).toFixed(2) }}</h2>
-            <p class="muted">This week’s income</p>
+            <h4>收入</h4>
+            <h2>¥ {{ (month支出 * 1.12).toFixed(2) }}</h2>
+            <p class="muted">本周收入</p>
           </div>
 
           <div class="panel expense-card">
-            <h4>Expense</h4>
-            <h2>¥ {{ monthExpense.toFixed(2) }}</h2>
-            <p class="muted">This week’s expense</p>
+            <h4>支出</h4>
+            <h2>¥ {{ month支出.toFixed(2) }}</h2>
+            <p class="muted">本周支出</p>
           </div>
 
           <div class="panel tasks">
@@ -840,13 +840,13 @@ onUnmounted(() => {
         <aside class="dashboard-right">
           <div class="panel card-stack">
             <div class="panel-head">
-              <h3>My Card</h3>
-              <button class="ghost">View All</button>
+              <h3>我的卡片</h3>
+              <button class="ghost">查看全部</button>
             </div>
             <div class="card-preview">
-              <p>Total Balance</p>
-              <h2>¥ {{ (monthExpense * 3.2 + 1280).toFixed(2) }}</h2>
-              <p class="muted">今日支出 ¥ {{ todayExpense.toFixed(2) }}</p>
+              <p>账户余额</p>
+              <h2>¥ {{ (month支出 * 3.2 + 1280).toFixed(2) }}</h2>
+              <p class="muted">今日支出 ¥ {{ today支出.toFixed(2) }}</p>
               <div class="card-row">
                 <span>**** 2323</span>
                 <span>08/24</span>
@@ -856,8 +856,8 @@ onUnmounted(() => {
 
           <div class="panel transactions">
             <div class="panel-head">
-              <h3>Transactions</h3>
-              <button class="ghost" @click="router.push('/ledger')">View All</button>
+              <h3>交易记录</h3>
+              <button class="ghost" @click="router.push('/ledger')">查看全部</button>
             </div>
             <div v-if="!recentLedger.length" class="empty-state">暂无记录</div>
             <ul v-else class="tx-list">
@@ -901,7 +901,7 @@ onUnmounted(() => {
 
           <div class="panel schedule">
             <div class="panel-head">
-              <h3>Schedule</h3>
+              <h3>日程</h3>
               <button class="ghost" @click="openCalendar">日历</button>
             </div>
             <div class="schedule-stats">
@@ -1016,7 +1016,7 @@ onUnmounted(() => {
 }
 
 .dashboard-nav {
-  background: rgba(10, 14, 16, 0.9);
+  background: color-mix(in srgb, var(--bg-1) 88%, transparent);
   border-radius: 24px;
   padding: 18px 10px;
   display: flex;
@@ -1024,7 +1024,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 18px;
   box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
 .nav-brand {
@@ -1033,7 +1033,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text);
 }
 
 .logo-dot {
@@ -1056,18 +1056,18 @@ onUnmounted(() => {
   width: 44px;
   height: 44px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--glass) 60%, transparent);
   display: grid;
   place-items: center;
-  color: #94a3b8;
+  color: var(--text-muted);
   border: 1px solid transparent;
 }
 
 .nav-item.active {
-  background: rgba(49, 208, 160, 0.18);
-  color: #e2f9f3;
-  border-color: rgba(49, 208, 160, 0.3);
-  box-shadow: 0 10px 20px rgba(49, 208, 160, 0.2);
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  box-shadow: var(--shadow-soft);
 }
 
 .nav-footer {
@@ -1095,8 +1095,8 @@ onUnmounted(() => {
   gap: 10px;
   padding: 10px 16px;
   border-radius: 18px;
-  background: rgba(10, 14, 16, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--input-bg);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
 .top-search input {
@@ -1119,8 +1119,8 @@ onUnmounted(() => {
 }
 
 .theme-switch .chip {
-  background: rgba(255, 255, 255, 0.08);
-  color: #cbd5f5;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--text);
 }
 
 .user-chip {
@@ -1129,7 +1129,7 @@ onUnmounted(() => {
   gap: 10px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
 }
 
 .user-chip .avatar {
@@ -1159,13 +1159,13 @@ onUnmounted(() => {
 .pill {
   padding: 8px 18px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #cbd5f5;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--text);
 }
 
 .pill.active {
   background: rgba(49, 208, 160, 0.3);
-  color: #e2f9f3;
+  color: var(--text);
 }
 
 .dashboard-grid {
@@ -1175,8 +1175,8 @@ onUnmounted(() => {
 }
 
 .panel {
-  background: rgba(17, 24, 28, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   border-radius: 24px;
   padding: 18px;
   box-shadow: 0 20px 30px rgba(0, 0, 0, 0.25);
@@ -1206,8 +1206,8 @@ onUnmounted(() => {
   display: block;
   width: 100%;
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(129, 140, 248, 0.8), rgba(49, 208, 160, 0.2));
-  box-shadow: 0 10px 20px rgba(129, 140, 248, 0.3);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 70%, transparent), color-mix(in srgb, var(--accent) 40%, transparent));
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
 .available {
@@ -1226,7 +1226,7 @@ onUnmounted(() => {
   width: 160px;
   height: 160px;
   border-radius: 50%;
-  background: conic-gradient(#6ee7b7 0 40%, #a78bfa 40% 70%, #38bdf8 70% 100%);
+  background: conic-gradient(color-mix(in srgb, var(--success) 70%, transparent) 0 40%, color-mix(in srgb, var(--accent) 60%, transparent) 40% 70%, color-mix(in srgb, var(--primary) 60%, transparent) 70% 100%);
   display: grid;
   place-items: center;
   position: relative;
@@ -1236,7 +1236,7 @@ onUnmounted(() => {
   content: '';
   width: 110px;
   height: 110px;
-  background: rgba(17, 24, 28, 0.9);
+  background: color-mix(in srgb, var(--bg-1) 80%, transparent);
   border-radius: 50%;
   position: absolute;
 }
@@ -1276,15 +1276,15 @@ onUnmounted(() => {
 }
 
 .card-stack {
-  background: linear-gradient(160deg, rgba(49, 208, 160, 0.4), rgba(15, 23, 42, 0.95));
-  color: #e2f9f3;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 30%, transparent), color-mix(in srgb, var(--bg-2) 90%, transparent));
+  color: var(--text);
 }
 
 .card-preview {
   margin-top: 10px;
   padding: 16px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
 }
 
 .card-row {
