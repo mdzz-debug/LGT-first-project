@@ -204,6 +204,8 @@ const monthIncome = computed(() => {
     .reduce((sum, row) => sum + row.amount, 0)
 })
 
+const monthNet = computed(() => monthIncome.value - monthExpense.value)
+
 const flowChartRef = ref<HTMLDivElement | null>(null)
 const donutChartRef = ref<HTMLDivElement | null>(null)
 let flowChart: echarts.ECharts | null = null
@@ -580,19 +582,23 @@ onUnmounted(() => {
         <aside class="dashboard-right">
           <div class="panel card-stack">
             <div class="panel-head">
-              <h3>我的卡片</h3>
+              <h3>资产概览</h3>
             </div>
-            <div class="card-preview">
-              <p>账户余额</p>
-              <h2>¥ {{ (monthExpense * 3.2 + 1280).toFixed(2) }}</h2>
-              <div class="card-metrics">
-                <span>本月收入 ¥ {{ monthIncome.toFixed(2) }}</span>
-                <span>本月支出 ¥ {{ monthExpense.toFixed(2) }}</span>
+            <div class="card-summary">
+              <div class="balance">
+                <p>本月结余</p>
+                <h2>¥ {{ monthNet.toFixed(2) }}</h2>
+                <p class="muted">今日支出 ¥ {{ todayExpense.toFixed(2) }}</p>
               </div>
-              <p class="muted">今日支出 ¥ {{ todayExpense.toFixed(2) }}</p>
-              <div class="card-row">
-                <span>**** 2323</span>
-                <span>08/24</span>
+              <div class="card-metrics">
+                <div>
+                  <p>本月收入</p>
+                  <h4>¥ {{ monthIncome.toFixed(2) }}</h4>
+                </div>
+                <div>
+                  <p>本月支出</p>
+                  <h4>¥ {{ monthExpense.toFixed(2) }}</h4>
+                </div>
               </div>
             </div>
           </div>
@@ -676,14 +682,18 @@ onUnmounted(() => {
   border-radius: 24px;
   padding: 18px 10px;
   display: flex;
-  position: sticky;
+  position: fixed;
   top: 24px;
+  left: 24px;
+  width: 88px;
   height: calc(100vh - 48px);
   flex-direction: column;
   align-items: center;
   gap: 16px;
   box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3);
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  z-index: 10;
+  transform: translateZ(0);
 }
 
 .nav-brand {
@@ -743,7 +753,7 @@ onUnmounted(() => {
 .dashboard-content {
   display: grid;
   gap: 24px;
-  margin-left: 112px;
+  margin-left: 128px;
 }
 
 .dashboard-main {
@@ -852,12 +862,12 @@ onUnmounted(() => {
 }
 
 .flow-chart {
-  height: 200px;
+  height: 220px;
 }
 
 .flow-echart {
   width: 100%;
-  height: 200px;
+  height: 220px;
 }
 
 .available {
@@ -870,6 +880,25 @@ onUnmounted(() => {
   place-items: center;
 }
 
+
+.donut-chart {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  display: grid;
+  place-items: center;
+}
+
+.donut-echart {
+  width: 100%;
+  height: 220px;
+}
+
+.donut-center {
+  position: absolute;
+  text-align: center;
+  pointer-events: none;
+}
 .tasks .task-list {
   margin-top: 12px;
   display: grid;
@@ -881,18 +910,29 @@ onUnmounted(() => {
   color: var(--text);
 }
 
-.card-preview {
+.card-summary {
   margin-top: 10px;
   padding: 16px;
   border-radius: 18px;
   background: color-mix(in srgb, var(--surface) 80%, transparent);
+  display: grid;
+  gap: 14px;
 }
 
-.card-row {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 18px;
-  font-size: 12px;
+.card-summary .balance h2 {
+  font-size: 26px;
+}
+
+.card-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  font-size: 13px;
+}
+
+.card-metrics h4 {
+  margin-top: 6px;
+  font-weight: 600;
 }
 
 .tx-list {
@@ -963,9 +1003,15 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
   }
   .dashboard-nav {
+    position: static;
+    width: auto;
+    height: auto;
     flex-direction: row;
     justify-content: space-between;
     padding: 12px 18px;
+  }
+  .dashboard-content {
+    margin-left: 0;
   }
   .nav-items {
     flex-direction: row;
