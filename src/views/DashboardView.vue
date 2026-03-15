@@ -454,15 +454,26 @@ const month支出 = computed(() => {
     .reduce((sum, row) => sum + row.amount, 0)
 })
 
-const flowBars = computed(() => {
-  const base = [28, 18, 24, 16, 30, 22, 26, 20]
-  const max = Math.max(...base)
-  return base.map((value, idx) => ({
-    id: idx,
-    value,
-    height: Math.round((value / max) * 100)
-  }))
-})
+const flowSeriesA = shallowRef([38, 52, 42, 68, 54, 62, 49])
+const flowSeriesB = shallowRef([22, 30, 26, 44, 31, 38, 33])
+const flowWidth = 320
+const flowHeight = 140
+
+const flowMax = computed(() => Math.max(...flowSeriesA.value, ...flowSeriesB.value))
+
+const buildLine = (series: number[]) => {
+  const step = series.length > 1 ? flowWidth / (series.length - 1) : flowWidth
+  return series
+    .map((v, i) => {
+      const x = Math.round(i * step)
+      const y = Math.round(flowHeight - (v / flowMax.value) * flowHeight)
+      return `${x},${y}`
+    })
+    .join(' ')
+}
+
+const flowLineA = computed(() => buildLine(flowSeriesA.value))
+const flowLineB = computed(() => buildLine(flowSeriesB.value))
 
 const formatTimeRange = (startAt?: string, endAt?: string, time?: string) => {
   const start = startAt ? startAt.replace('T', ' ') : ''
@@ -739,8 +750,13 @@ onUnmounted(() => {
               <button class="ghost" @click="goWeeklyReport">查看全部</button>
             </div>
             <div class="flow-chart">
-              <div v-for="bar in flowBars" :key="bar.id" class="flow-bar">
-                <span :style="{ height: bar.height + '%' }"></span>
+              <svg class="flow-svg" :viewBox="`0 0 ${flowWidth} ${flowHeight}`">
+                <polyline :points="flowLineA" class="flow-line line-a" />
+                <polyline :points="flowLineB" class="flow-line line-b" />
+              </svg>
+              <div class="flow-legend">
+                <span><span class="legend-dot income"></span>收入</span>
+                <span><span class="legend-dot expense"></span>支出</span>
               </div>
             </div>
           </div>
@@ -826,7 +842,13 @@ onUnmounted(() => {
 
           <div class="panel transactions">
             <div class="panel-head">
-              <h3>交易记录</h3>
+              <div>
+                <h3>交易记录</h3>
+                <div class="tx-legend">
+                  <span><Icon icon="mdi:arrow-up" /> 收入</span>
+                  <span><Icon icon="mdi:arrow-down" /> 支出</span>
+                </div>
+              </div>
               <button class="ghost" @click="router.push('/ledger')">查看全部</button>
             </div>
             <div v-if="!recentLedger.length" class="empty-state">暂无记录</div>
@@ -960,8 +982,8 @@ onUnmounted(() => {
 .dashboard-layout {
   display: grid;
   grid-template-columns: 84px minmax(0, 1fr);
-  gap: 24px;
-  padding: 24px;
+  gap: 28px;
+  padding: 28px;
 }
 
 .dashboard-nav {
@@ -969,6 +991,9 @@ onUnmounted(() => {
   border-radius: 24px;
   padding: 18px 10px;
   display: flex;
+  position: sticky;
+  top: 24px;
+  height: calc(100vh - 48px);
   flex-direction: column;
   align-items: center;
   gap: 16px;
@@ -1047,7 +1072,7 @@ onUnmounted(() => {
 
 .dashboard-topbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
@@ -1148,14 +1173,6 @@ onUnmounted(() => {
   align-items: end;
 }
 
-.flow-bar span {
-  display: block;
-  width: 100%;
-  border-radius: 14px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 70%, transparent), color-mix(in srgb, var(--accent) 40%, transparent));
-  box-shadow: 0 10px 20px color-mix(in srgb, var(--primary) 25%, transparent);
-}
-
 .available {
   display: grid;
   gap: 16px;
@@ -1244,6 +1261,8 @@ onUnmounted(() => {
   margin-top: 12px;
   display: grid;
   gap: 10px;
+  list-style: none;
+  padding: 0;
 }
 
 
@@ -1257,6 +1276,18 @@ onUnmounted(() => {
 .transactions .tx-body {
   display: grid;
   gap: 4px;
+}
+
+.tx-legend {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tx-legend .iconify {
+  width: 14px;
+  height: 14px;
 }
 
 .transactions .tx-amount {
