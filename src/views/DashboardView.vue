@@ -110,22 +110,6 @@ const habits = ref<Habit[]>([])
 
 const ledgerRecords = ref<LedgerItem[]>([])
 
-const toggleHabitCheck = async (habit: Habit) => {
-  const nextDone = !habit.done
-  habit.done = nextDone
-  habit.streak = habit.done ? habit.streak + 1 : Math.max(habit.streak - 1, 0)
-  try {
-    await apiFetch(`/habits/${habit.id}`, {
-      method: 'PATCH',
-      body: {
-        done: nextDone
-      }
-    })
-  } catch {
-    pushToast('习惯状态更新失败', 'error')
-  }
-}
-
 type UpcomingStatus = 'todo' | 'done' | 'overdue'
 
 type UpcomingItem = {
@@ -585,10 +569,6 @@ const goWeeklyReport = () => {
   router.push('/stats')
 }
 
-const goHabits = () => {
-  router.push('/habits')
-}
-
 const openCalendar = () => {
   calendarOpen.value = true
 }
@@ -728,10 +708,6 @@ onUnmounted(() => {
 
     <div class="dashboard-content">
       <header class="dashboard-topbar">
-        <div class="top-search">
-          <Icon icon="mdi:magnify" />
-          <input v-model="query" placeholder="搜索记录" />
-        </div>
         <div class="top-actions">
           <div class="theme-switch">
             <button class="chip" :class="theme === 'light' && 'active'" @click="theme = 'light'">浅色</button>
@@ -749,12 +725,6 @@ onUnmounted(() => {
         <div>
           <h1>总览面板 <span class="greeting">· {{ greetingText }}</span></h1>
           <p class="muted">今天共 {{ todayTasks.length }} 项待办，完成度 {{ completion }}%</p>
-        </div>
-        <div class="filter-pills">
-          <button class="pill active">全部</button>
-          <button class="pill">支出</button>
-          <button class="pill">储蓄</button>
-          <button class="pill">入账</button>
         </div>
       </section>
 
@@ -876,28 +846,7 @@ onUnmounted(() => {
             </ul>
           </div>
 
-          <div class="panel habits">
-            <div class="panel-head">
-              <h3>习惯追踪</h3>
-              <button class="ghost" @click="goHabits">编辑</button>
-            </div>
-            <div class="habit-list">
-              <div v-for="habit in habits" :key="habit.id" class="habit-item">
-                <div class="habit-info">
-                  <div class="habit-icon">
-                    <Icon :icon="habit.icon" />
-                  </div>
-                  <div>
-                    <div class="habit-title">{{ habit.name }}</div>
-                    <div class="muted">连续 {{ habit.streak }} 天</div>
-                  </div>
-                </div>
-                <button class="habit-check" :class="habit.done && 'done'" @click="toggleHabitCheck(habit)">
-                  {{ habit.done ? '已完成' : '打卡' }}
-                </button>
-              </div>
-            </div>
-          </div>
+          
 
           <div class="panel schedule">
             <div class="panel-head">
@@ -1083,7 +1032,17 @@ onUnmounted(() => {
 
 .dashboard-content {
   display: grid;
-  gap: 22px;
+  gap: 24px;
+}
+
+.dashboard-main {
+  display: grid;
+  gap: 18px;
+}
+
+.dashboard-right {
+  display: grid;
+  gap: 18px;
 }
 
 .dashboard-topbar {
@@ -1092,26 +1051,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-}
-
-.top-search {
-  flex: 1;
-  max-width: 420px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  border-radius: 18px;
-  background: var(--input-bg);
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-}
-
-.top-search input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--text);
-  outline: none;
 }
 
 .top-actions {
@@ -1178,7 +1117,7 @@ onUnmounted(() => {
 .dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  gap: 22px;
+  gap: 28px;
 }
 
 .panel {
@@ -1305,6 +1244,23 @@ onUnmounted(() => {
   margin-top: 12px;
   display: grid;
   gap: 10px;
+}
+
+
+.transactions .tx-item {
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.transactions .tx-body {
+  display: grid;
+  gap: 4px;
+}
+
+.transactions .tx-amount {
+  font-weight: 600;
 }
 
 @media (max-width: 1200px) {
