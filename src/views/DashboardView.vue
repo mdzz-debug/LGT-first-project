@@ -50,6 +50,7 @@ type Task = {
   dueDate?: string
   startAt?: string
   endAt?: string
+  doneAt?: string
   done: boolean
   icon: string
 }
@@ -328,17 +329,16 @@ const toLocalDateKey = (date: Date) => {
 
 const todayTaskKey = computed(() => toLocalDateKey(new Date()))
 
-const getTaskRange = (task: Task) => {
-  const startDate = (task.startAt || task.dueDate || task.due || '').slice(0, 10)
-  const endDate = (task.endAt || task.dueDate || task.due || startDate).slice(0, 10)
-  return { startDate, endDate }
-}
+const getTaskEndDate = (task: Task) =>
+  (task.endAt || task.dueDate || task.due || '').slice(0, 10)
+
+const getTaskDoneDate = (task: Task) => (task.doneAt || '').slice(0, 10)
 
 const todayTasks = computed(() =>
   tasks.value.filter((task) => {
-    const { startDate, endDate } = getTaskRange(task)
-    if (!startDate || !endDate) return false
-    return startDate <= todayTaskKey.value && endDate >= todayTaskKey.value
+    const endDate = getTaskEndDate(task)
+    const doneDate = task.done ? getTaskDoneDate(task) : ''
+    return (endDate && endDate === todayTaskKey.value) || (doneDate && doneDate === todayTaskKey.value)
   })
 )
 
@@ -395,6 +395,7 @@ const fetchTasks = async () => {
       dueDate: item.due_date ?? item.due,
       startAt: item.start_at || item.startAt,
       endAt: item.end_at || item.endAt,
+      doneAt: item.done_at || item.doneAt,
       done: !!item.done,
       icon: normalizeTaskIcon(item.icon, item.category)
     }))
