@@ -258,7 +258,13 @@ const nextMonth = () => {
   font-size: 24px;
 }
 
+.member-compare-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .member-compare-legend .name {
-  font-size: 20px;
+  font-size: 14px;
 }
 </style>

@@ -894,12 +894,18 @@ onMounted(async () => {
   font-size: 26px;
 }
 
+.family-waffle-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .family-waffle-item {
   cursor: pointer;
 }
 
 .family-waffle-legend .name {
-  font-size: 20px;
+  font-size: 14px;
 }
 
 .legend-amount {
