@@ -2,6 +2,8 @@
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import AppHeader from '../components/AppHeader.vue'
 import MemberSpendCompare from '../components/MemberSpendCompare.vue'
+import WaffleGrid from '../components/WaffleGrid.vue'
+import { buildWaffle } from '../utils/waffle'
 import { apiFetch } from '../api/client'
 import { pushToast } from '../composables/useToast'
 import { useRecycleFly } from '../composables/useRecycleFly'
@@ -191,92 +193,27 @@ const categoryChart = computed(() => {
     }))
 })
 
-const categoryGrid = computed(() => {
-  const items = categoryChart.value
-  if (!items.length) return { tiles: [], legend: [] }
-  const total = items.reduce((sum, item) => sum + item.total, 0)
-  if (!total) return { tiles: [], legend: [] }
-
-  const legend = items.map((item) => ({
-    ...item,
-    percent: Math.round((item.total / total) * 100)
-  }))
-
-  const counts = legend.map((item) => ({
-    ...item,
-    count: Math.round((item.total / total) * 100)
-  }))
-
-  let allocated = counts.reduce((sum, item) => sum + item.count, 0)
-  if (allocated !== 100 && counts.length) {
-    const diff = 100 - allocated
-    const first = counts[0]
-    if (first) {
-      first.count = Math.max(0, first.count + diff)
-    }
-  }
-
-  const tiles: Array<{ category: string; color: string }> = []
-  counts.forEach((item) => {
-    for (let i = 0; i < item.count; i += 1) {
-      tiles.push({ category: item.category, color: item.color || '#cbd5f5' })
-    }
-  })
-
-  return { tiles, legend }
-})
-
-const gridActive = shallowRef<string | null>(null)
-const gridActiveInfo = computed(() =>
-  categoryGrid.value.legend.find((item) => item.category === gridActive.value) || null
+const categoryWaffle = computed(() =>
+  buildWaffle(
+    categoryChart.value.map((item) => ({
+      label: item.category,
+      amount: item.total,
+      color: item.color ?? '#cbd5f5'
+    }))
+  )
 )
-const toggleGridActive = (category: string) => {
-  gridActive.value = gridActive.value === category ? null : category
-}
 
-const familyWaffle = computed(() => {
-  const rows = familyCategoryTotals.value.filter((r) => r.total > 0)
-  if (!rows.length) return { tiles: [], legend: [] }
-  const total = rows.reduce((sum, r) => sum + r.total, 0)
-  if (!total) return { tiles: [], legend: [] }
-
-  const legend = rows.map((r, idx) => ({
-    ...r,
-    color: chartPalette[idx % chartPalette.length],
-    percent: Math.round((r.total / total) * 100)
-  }))
-
-  const counts = legend.map((item) => ({
-    ...item,
-    count: Math.round((item.total / total) * 100)
-  }))
-
-  let allocated = counts.reduce((sum, item) => sum + item.count, 0)
-  if (allocated !== 100) {
-    const diff = 100 - allocated
-    const first = counts[0]
-    if (first) {
-      first.count = Math.max(0, first.count + diff)
-    }
-  }
-
-  const tiles: Array<{ category: string; color: string }> = []
-  counts.forEach((item) => {
-    for (let i = 0; i < item.count; i += 1) {
-      tiles.push({ category: item.category ?? '其他', color: item.color ?? '#cbd5f5' })
-    }
-  })
-
-  return { tiles, legend }
-})
-
-const familyGridActive = shallowRef<string | null>(null)
-const familyGridActiveInfo = computed(() =>
-  familyWaffle.value.legend.find((item) => item.category === familyGridActive.value) || null
+const familyWaffle = computed(() =>
+  buildWaffle(
+    familyCategoryTotals.value
+      .filter((row) => row.total > 0)
+      .map((row, idx) => ({
+        label: row.category,
+        amount: row.total,
+        color: chartPalette[idx % chartPalette.length] || '#cbd5f5'
+      }))
+  )
 )
-const toggleFamilyGridActive = (category: string) => {
-  familyGridActive.value = familyGridActive.value === category ? null : category
-}
 
 const fetchRecords = async () => {
   loading.value = true
@@ -485,35 +422,17 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-if="categoryGrid.legend.length" class="ledger-chart grid-chart">
+        <div v-if="categoryWaffle.legend.length" class="ledger-chart grid-chart">
           <div class="chart-summary">
             <span class="kicker">支出分布</span>
             <h3>¥ {{ formatAmount(totalExpense) }}</h3>
             <p class="muted">本月支出总额</p>
           </div>
-          <div class="chart-grid-wrap">
-            <div class="chart-grid">
-              <div
-                v-for="(tile, idx) in categoryGrid.tiles"
-                :key="idx"
-                class="grid-tile"
-                :style="{ background: tile.color }"
-                :title="tile.category"
-                @click="toggleGridActive(tile.category)"
-              ></div>
-              <div v-if="gridActiveInfo" class="grid-overlay" @click="gridActive = null">
-                <span class="overlay-name">{{ gridActiveInfo.category }}</span>
-                <span class="overlay-percent">{{ gridActiveInfo.percent }}%</span>
-              </div>
-            </div>
-            <div class="chart-legend">
-              <div v-for="item in categoryGrid.legend" :key="item.category" class="legend-row" @click="toggleGridActive(item.category)">
-                <span class="dot" :style="{ background: item.color }"></span>
-                <span class="legend-name">{{ item.category }}</span>
-                <span class="legend-amount">¥ {{ formatAmount(item.total) }}</span>
-              </div>
-            </div>
-          </div>
+          <WaffleGrid
+            :tiles="categoryWaffle.tiles"
+            :legend="categoryWaffle.legend"
+            :amount-formatter="formatAmount"
+          />
         </div>
         <div v-else class="rose-empty">暂无支出数据</div>
       </section>
@@ -660,33 +579,15 @@ onMounted(async () => {
               <div class="family-category-body">
                 <div class="family-waffle-stack">
                   <div class="family-waffle-wrap">
-                    <div class="family-waffle">
-                      <div
-                        v-for="(tile, idx) in familyWaffle.tiles"
-                        :key="idx"
-                        class="waffle-tile"
-                        :style="{ background: tile.color }"
-                        :title="tile.category"
-                        @click="toggleFamilyGridActive(tile.category)"
-                      ></div>
-                      <div v-if="familyGridActiveInfo" class="waffle-overlay" @click="familyGridActive = null">
-                        <span class="overlay-name">{{ familyGridActiveInfo.category }}</span>
-                        <span class="overlay-percent">{{ familyGridActiveInfo.percent }}%</span>
-                      </div>
-                    </div>
+                    <WaffleGrid
+                      :tiles="familyWaffle.tiles"
+                      :legend="familyWaffle.legend"
+                      :amount-formatter="formatAmount"
+                    />
                   </div>
                   <div class="family-waffle-total">支出总额 ¥ {{ formatAmount(totalExpense) }}</div>
                 </div>
 
-                <div class="family-waffle-legend">
-                  <div v-for="item in familyWaffle.legend" :key="item.category" class="family-waffle-item" @click="toggleFamilyGridActive(item.category)">
-                    <span class="dot" :style="{ background: item.color }"></span>
-                    <div class="legend-left">
-                      <span class="name">{{ item.category }}</span>
-                    </div>
-                    <span class="amount">¥ {{ formatAmount(item.total) }}</span>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
