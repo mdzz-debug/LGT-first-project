@@ -141,7 +141,10 @@ const memberWaffle = computed(() => {
   let allocated = counts.reduce((sum, item) => sum + item.count, 0)
   if (allocated !== 100 && counts.length) {
     const diff = 100 - allocated
-    counts[0].count = Math.max(0, counts[0].count + diff)
+    const first = counts[0]
+    if (first) {
+      first.count = Math.max(0, first.count + diff)
+    }
   }
 
   const tiles: Array<{ name: string; color: string }> = []
