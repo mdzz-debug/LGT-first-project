@@ -11,7 +11,6 @@ import iconStats from '@mdi/svg/svg/chart-line.svg?raw'
 import iconThemeLight from '@mdi/svg/svg/weather-sunny.svg?raw'
 import iconThemeDark from '@mdi/svg/svg/moon-waning-crescent.svg?raw'
 import iconThemeWarm from '@mdi/svg/svg/fire.svg?raw'
-import iconMenu from '@mdi/svg/svg/menu.svg?raw'
 import iconPalette from '@mdi/svg/svg/palette.svg?raw'
 import { useTheme } from '../composables/useTheme'
 import { apiFetch } from '../api/client'
@@ -26,11 +25,11 @@ const router = useRouter()
 const { theme } = useTheme()
 
 const navItems = [
-  { label: '概览', path: '/dashboard', icon: iconDashboard },
-  { label: '任务', path: '/tasks', icon: iconTasks },
-  { label: '记账', path: '/ledger', icon: iconLedger },
+  { label: '总览', path: '/dashboard', icon: iconDashboard },
+  { label: '收支', path: '/ledger', icon: iconLedger },
+  { label: '待办', path: '/tasks', icon: iconTasks },
   { label: '习惯', path: '/habits', icon: iconHabits },
-  { label: '统计', path: '/stats', icon: iconStats }
+  { label: '洞察', path: '/stats', icon: iconStats }
 ]
 
 const themes = [
