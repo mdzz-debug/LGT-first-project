@@ -754,7 +754,7 @@ onMounted(async () => {
 }
 
 .ledger-stat-grid .stat-card strong {
-  font-size: 20px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
 
