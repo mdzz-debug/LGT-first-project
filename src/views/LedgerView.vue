@@ -56,6 +56,8 @@ const familySummary = ref<FamilySummary>({
 const query = ref('')
 const filterType = ref<'all' | 'expense' | 'income'>('all')
 const filterCategory = ref('all')
+const selectedDate = shallowRef(new Date().toISOString().slice(0, 10))
+const datePickerRef = ref<HTMLInputElement | null>(null)
 
 const modalOpen = ref(false)
 const familyOverviewOpen = ref(false)
@@ -71,14 +73,28 @@ const form = ref({
   note: ''
 })
 
+const dailyRecords = computed(() =>
+  records.value.filter((item) => item.date === selectedDate.value)
+)
+
 const filtered = computed(() => {
-  return records.value.filter((item) => {
+  return dailyRecords.value.filter((item) => {
     const hitQuery = item.note.includes(query.value.trim())
     const hitType = filterType.value === 'all' || item.type === filterType.value
     const hitCategory = filterCategory.value === 'all' || item.category === filterCategory.value
     return hitQuery && hitType && hitCategory
   })
 })
+
+const openDatePicker = () => {
+  const picker = datePickerRef.value
+  if (!picker) return
+  if (typeof (picker as HTMLInputElement).showPicker === 'function') {
+    picker.showPicker()
+  } else {
+    picker.click()
+  }
+}
 
 const totalIncome = computed(() =>
   records.value.filter((r) => r.type === 'income').reduce((sum, r) => sum + r.amount, 0)
@@ -451,10 +467,17 @@ onMounted(async () => {
       </section>
 
       <section class="panel glass ledger-list-panel">
-        <div class="task-board-head">
+        <div class="task-board-head ledger-list-head">
           <div>
             <h3>记账记录</h3>
-            <p class="muted">共 {{ records.length }} 条</p>
+            <p class="muted">共 {{ dailyRecords.length }} 条</p>
+          </div>
+          <div class="ledger-list-actions">
+            <button class="ghost task-pill" @click="openDatePicker">
+              日历
+            </button>
+            <span class="date-chip">{{ selectedDate }}</span>
+            <input ref="datePickerRef" v-model="selectedDate" type="date" class="date-input" />
           </div>
         </div>
 
@@ -475,7 +498,7 @@ onMounted(async () => {
 
         <div v-if="loading" class="empty-state">加载中…</div>
         <div v-else-if="error" class="empty-state">{{ error }}</div>
-        <div v-else-if="!filtered.length" class="empty-state">暂无记账记录</div>
+        <div v-else-if="!filtered.length" class="empty-state">暂无当天记账记录</div>
 
         <div v-else class="ledger-list">
           <div v-for="item in filtered" :key="item.id" class="ledger-item">
@@ -635,6 +658,42 @@ onMounted(async () => {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.task-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: center;
+}
+
+.task-tools .search,
+.task-tools select {
+  width: 100%;
+}
+
+.ledger-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.date-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.date-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
 .ledger-stat-grid .stat-card {
   display: flex;
   flex-direction: column;
@@ -732,13 +791,24 @@ onMounted(async () => {
 
 @media (max-width: 640px) {
   .ledger-stat-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .ledger-actions {
     width: 100%;
   }
   .ledger-actions button {
     flex: 1 1 140px;
+  }
+  .task-tools {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
+    gap: 8px;
+  }
+  .ledger-list-head {
+    align-items: flex-start;
+  }
+  .ledger-list-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
   .chart-row {
     grid-template-columns: 1fr;

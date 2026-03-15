@@ -2518,6 +2518,18 @@ select {
     width: 100%;
     padding: 24px;
   }
+
+  .task-filters {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
+    gap: 8px;
+  }
+
+  .task-filters .search,
+  .task-filters select {
+    width: 100%;
+  }
 }
 
 @keyframes fade-up {
