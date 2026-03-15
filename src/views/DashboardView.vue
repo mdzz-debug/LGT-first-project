@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, shallowRef } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Icon, addCollection } from '@iconify/vue'
+import * as echarts from 'echarts'
 import mdi from '@iconify-json/mdi/icons.json'
 import { useTheme } from '../composables/useTheme'
-import CalendarModal, { type CalendarEvent } from '../components/CalendarModal.vue'
 import { apiFetch } from '../api/client'
 import { pushToast } from '../composables/useToast'
 
@@ -68,14 +68,6 @@ type Task = {
   icon: string
 }
 
-type Habit = {
-  id: string | number
-  name: string
-  streak: number
-  icon: string
-  done: boolean
-}
-
 type LedgerItem = {
   id: string | number
   type: 'expense' | 'income'
@@ -85,28 +77,8 @@ type LedgerItem = {
   note: string
 }
 
-type PomodoroMode = 'focus' | 'short' | 'long'
-
-type PomodoroSettings = {
-  focusMinutes: number
-  shortBreakMinutes: number
-  longBreakMinutes: number
-  longBreakEvery: number
-}
-
-type PomodoroState = {
-  mode: PomodoroMode
-  status: 'idle' | 'running' | 'paused'
-  secondsLeft: number
-  completedRounds: number
-}
-
-const categories = ['家庭', '工作', '健康', '学习']
-const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
 
 const tasks = ref<Task[]>([])
-
-const habits = ref<Habit[]>([])
 
 const ledgerRecords = ref<LedgerItem[]>([])
 
@@ -126,178 +98,6 @@ type UpcomingItem = {
 
 const upcoming = ref<UpcomingItem[]>([])
 
-const query = ref('')
-const statusFilter = ref<'all' | 'todo' | 'done'>('all')
-const priorityFilter = ref<'all' | Task['priority']>('all')
-const modalOpen = ref(false)
-const editingId = ref<string | number | null>(null)
-const calendarOpen = shallowRef(false)
-const form = ref<{
-  title: string
-  category: string
-  priority: Task['priority']
-  due: string
-  icon: string
-}>({
-  title: '',
-  category: categories[0] ?? '家庭',
-  priority: priorities[1] ?? 'P2',
-  due: '',
-  icon: 'mdi:checkbox-marked-circle-outline'
-})
-
-const settingsKey = 'pulse.pomodoro.settings'
-const stateKey = 'pulse.pomodoro.state'
-const defaultSettings: PomodoroSettings = {
-  focusMinutes: 30,
-  shortBreakMinutes: 10,
-  longBreakMinutes: 20,
-  longBreakEvery: 4
-}
-
-const loadSettings = (): PomodoroSettings => {
-  const raw = localStorage.getItem(settingsKey)
-  if (!raw) {
-    localStorage.setItem(settingsKey, JSON.stringify(defaultSettings))
-    return defaultSettings
-  }
-  try {
-    return { ...defaultSettings, ...JSON.parse(raw) }
-  } catch {
-    return defaultSettings
-  }
-}
-
-const settings = ref(loadSettings())
-
-const pomodoroOpen = ref(false)
-const pomodoro = ref<PomodoroState>({
-  mode: 'focus',
-  status: 'idle',
-  secondsLeft: settings.value.focusMinutes * 60,
-  completedRounds: 0
-})
-
-let timer: ReturnType<typeof setInterval> | null = null
-
-const persistState = () => {
-  localStorage.setItem(stateKey, JSON.stringify(pomodoro.value))
-  localStorage.setItem(settingsKey, JSON.stringify(settings.value))
-}
-
-const getDuration = (mode: PomodoroMode) => {
-  if (mode === 'focus') return settings.value.focusMinutes
-  if (mode === 'long') return settings.value.longBreakMinutes
-  return settings.value.shortBreakMinutes
-}
-
-const resetPomodoro = () => {
-  pomodoro.value = {
-    mode: 'focus',
-    status: 'idle',
-    secondsLeft: settings.value.focusMinutes * 60,
-    completedRounds: 0
-  }
-  persistState()
-}
-
-const startTimer = () => {
-  if (timer) return
-  timer = setInterval(() => {
-    if (pomodoro.value.secondsLeft > 0) {
-      pomodoro.value.secondsLeft -= 1
-      persistState()
-    } else {
-      handlePhaseEnd()
-    }
-  }, 1000)
-}
-
-const stopTimer = () => {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
-}
-
-const handlePhaseEnd = () => {
-  stopTimer()
-  if (pomodoro.value.mode === 'focus') {
-    pomodoro.value.completedRounds += 1
-    const isLong = pomodoro.value.completedRounds % settings.value.longBreakEvery === 0
-    pomodoro.value.mode = isLong ? 'long' : 'short'
-  } else {
-    pomodoro.value.mode = 'focus'
-  }
-  pomodoro.value.secondsLeft = getDuration(pomodoro.value.mode) * 60
-  pomodoro.value.status = 'running'
-  startTimer()
-  persistState()
-}
-
-const startPomodoro = () => {
-  if (pomodoro.value.status === 'running') return
-  if (pomodoro.value.secondsLeft <= 0) {
-    pomodoro.value.secondsLeft = getDuration(pomodoro.value.mode) * 60
-  }
-  pomodoro.value.status = 'running'
-  startTimer()
-  persistState()
-}
-
-const pausePomodoro = () => {
-  pomodoro.value.status = 'paused'
-  stopTimer()
-  persistState()
-}
-
-const stopPomodoro = () => {
-  stopTimer()
-  resetPomodoro()
-}
-
-const skipPhase = () => {
-  if (pomodoro.value.mode !== 'focus') {
-    pomodoro.value.mode = 'focus'
-    pomodoro.value.secondsLeft = getDuration('focus') * 60
-    pomodoro.value.status = 'running'
-    startTimer()
-    persistState()
-  }
-}
-
-const openPomodoro = () => {
-  pomodoroOpen.value = true
-  if (pomodoro.value.status === 'idle') {
-    pomodoro.value.secondsLeft = getDuration('focus') * 60
-    persistState()
-  }
-}
-
-const closePomodoro = () => {
-  pomodoroOpen.value = false
-}
-
-const formattedTime = computed(() => {
-  const total = pomodoro.value.secondsLeft
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-})
-
-const modeLabel = computed(() => {
-  if (pomodoro.value.mode === 'focus') return '专注'
-  if (pomodoro.value.mode === 'long') return '长休息'
-  return '短休息'
-})
-
-const roundLabel = computed(() => {
-  const current = pomodoro.value.mode === 'focus'
-    ? pomodoro.value.completedRounds + 1
-    : pomodoro.value.completedRounds
-  return `第 ${current} / ${settings.value.longBreakEvery} 轮`
-})
-
 const getTaskRange = (task: Task) => {
   const startDate = (task.startAt || task.dueDate || task.due || '').slice(0, 10)
   const endDate = (task.endAt || task.startAt || task.dueDate || task.due || '').slice(0, 10)
@@ -312,6 +112,13 @@ const resolveTaskStatus = (task: Task) => {
   return 0
 }
 
+const overview = ref({
+  completionRate: 0,
+  focusMinutes: 0,
+  todoCount: 0,
+  teamMembers: 0
+})
+
 const todayTasks = computed(() =>
   tasks.value.filter((task) => {
     const { startDate, endDate } = getTaskRange(task)
@@ -321,27 +128,8 @@ const todayTasks = computed(() =>
   })
 )
 
-const filteredTasks = computed(() => {
-  return todayTasks.value.filter((task) => {
-    const hitQuery = task.title.includes(query.value.trim())
-    const status = resolveTaskStatus(task)
-    const hitStatus =
-      statusFilter.value === 'all' ||
-      (statusFilter.value === 'done' ? status === 1 : status === 0)
-    const hitPriority =
-      priorityFilter.value === 'all' || task.priority === priorityFilter.value
-    return hitQuery && hitStatus && hitPriority
-  })
-})
-
-const overview = ref({
-  completionRate: 0,
-  focusMinutes: 0,
-  todoCount: 0,
-  teamMembers: 0
-})
-
 const completed = computed(() => todayTasks.value.filter((t) => resolveTaskStatus(t) === 1).length)
+const inProgress = computed(() => todayTasks.value.filter((t) => resolveTaskStatus(t) === 0).length)
 const completion = computed(() =>
   todayTasks.value.length
     ? Math.round((completed.value / todayTasks.value.length) * 100)
@@ -350,36 +138,6 @@ const completion = computed(() =>
 const focusMinutes = computed(() =>
   todayTasks.value.length ? completed.value * 25 : overview.value.focusMinutes
 )
-const inProgress = computed(() =>
-  todayTasks.value.filter((t) => resolveTaskStatus(t) === 0).length
-)
-
-const toggleDone = async (task: Task) => {
-  task.done = !task.done
-  try {
-    await apiFetch(`/tasks/${task.id}`, {
-      method: 'PATCH',
-      body: { done: task.done }
-    })
-    await fetchOverview()
-  } catch {
-    pushToast('任务状态更新失败', 'error')
-  }
-}
-
-
-
-const openCreate = () => {
-  editingId.value = null
-  form.value = {
-    title: '',
-    category: categories[0] ?? '家庭',
-    priority: priorities[1] ?? 'P2',
-    due: '',
-    icon: 'mdi:checkbox-marked-circle-outline'
-  }
-  modalOpen.value = true
-}
 
 const fetchTasks = async () => {
   try {
@@ -410,21 +168,6 @@ const fetchOverview = async () => {
   }
 }
 
-const fetchHabits = async () => {
-  try {
-    const data = await apiFetch<any[]>('/habits')
-    habits.value = data.slice(0, 4).map((h) => ({
-      id: h.id,
-      name: h.name,
-      streak: Number(h.streak || 0),
-      icon: h.icon || 'mdi:check-circle-outline',
-      done: !!h.done
-    }))
-  } catch {
-    // ignore
-  }
-}
-
 const fetchLedgerRecords = async () => {
   try {
     const data = await apiFetch<any[]>('/ledger/records')
@@ -442,39 +185,160 @@ const fetchLedgerRecords = async () => {
 }
 
 const recentLedger = computed(() => ledgerRecords.value.slice(0, 5))
-const today支出 = computed(() =>
+const todayExpense = computed(() =>
   ledgerRecords.value
     .filter((row) => row.type === 'expense' && row.date === todayKey.value)
     .reduce((sum, row) => sum + row.amount, 0)
 )
-const month支出 = computed(() => {
+const monthExpense = computed(() => {
   const monthKey = todayKey.value.slice(0, 7)
   return ledgerRecords.value
     .filter((row) => row.type === 'expense' && row.date.startsWith(monthKey))
     .reduce((sum, row) => sum + row.amount, 0)
 })
 
-const flowSeriesA = shallowRef([38, 52, 42, 68, 54, 62, 49])
-const flowSeriesB = shallowRef([22, 30, 26, 44, 31, 38, 33])
-const flowWidth = 320
-const flowHeight = 140
+const monthIncome = computed(() => {
+  const monthKey = todayKey.value.slice(0, 7)
+  return ledgerRecords.value
+    .filter((row) => row.type === 'income' && row.date.startsWith(monthKey))
+    .reduce((sum, row) => sum + row.amount, 0)
+})
 
-const flowMax = computed(() => Math.max(...flowSeriesA.value, ...flowSeriesB.value))
+const flowChartRef = ref<HTMLDivElement | null>(null)
+const donutChartRef = ref<HTMLDivElement | null>(null)
+let flowChart: echarts.ECharts | null = null
+let donutChart: echarts.ECharts | null = null
 
-const buildLine = (series: number[]) => {
-  const step = series.length > 1 ? flowWidth / (series.length - 1) : flowWidth
-  return series
-    .map((v, i) => {
-      const x = Math.round(i * step)
-      const y = Math.round(flowHeight - (v / flowMax.value) * flowHeight)
-      return `${x},${y}`
-    })
-    .join(' ')
+const getThemeTokens = () => {
+  const styles = getComputedStyle(document.documentElement)
+  return {
+    text: styles.getPropertyValue('--text').trim() || '#0f172a',
+    muted: styles.getPropertyValue('--text-muted').trim() || '#6b7280',
+    primary: styles.getPropertyValue('--primary').trim() || '#4f8cff',
+    accent: styles.getPropertyValue('--accent').trim() || '#a855f7',
+    success: styles.getPropertyValue('--success').trim() || '#22c55e',
+    border: styles.getPropertyValue('--border').trim() || 'rgba(148,163,184,0.2)',
+    surface: styles.getPropertyValue('--surface').trim() || '#ffffff'
+  }
 }
 
-const flowLineA = computed(() => buildLine(flowSeriesA.value))
-const flowLineB = computed(() => buildLine(flowSeriesB.value))
+const buildFlowSeries = () => {
+  const labels: string[] = []
+  const income: number[] = []
+  const expense: number[] = []
+  const now = new Date()
+  for (let i = 6; i >= 0; i -= 1) {
+    const date = new Date(now)
+    date.setDate(now.getDate() - i)
+    const key = date.toISOString().slice(0, 10)
+    labels.push(key.slice(5))
+    const dayIncome = ledgerRecords.value
+      .filter((row) => row.type === 'income' && row.date === key)
+      .reduce((sum, row) => sum + row.amount, 0)
+    const dayExpense = ledgerRecords.value
+      .filter((row) => row.type === 'expense' && row.date === key)
+      .reduce((sum, row) => sum + row.amount, 0)
+    income.push(Number(dayIncome.toFixed(2)))
+    expense.push(Number(dayExpense.toFixed(2)))
+  }
+  return { labels, income, expense }
+}
 
+const updateFlowChart = () => {
+  if (!flowChartRef.value) return
+  const tokens = getThemeTokens()
+  if (!flowChart) {
+    flowChart = echarts.init(flowChartRef.value)
+  }
+  const { labels, income, expense } = buildFlowSeries()
+  flowChart.setOption({
+    grid: { left: 8, right: 8, top: 10, bottom: 20, containLabel: true },
+    tooltip: { trigger: 'axis' },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: tokens.border } },
+      axisLabel: { color: tokens.muted }
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: tokens.border } },
+      axisLabel: { color: tokens.muted }
+    },
+    series: [
+      {
+        name: '收入',
+        type: 'line',
+        data: income,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 3, color: tokens.primary },
+        itemStyle: { color: tokens.primary }
+      },
+      {
+        name: '支出',
+        type: 'line',
+        data: expense,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 3, color: tokens.accent },
+        itemStyle: { color: tokens.accent }
+      }
+    ]
+  })
+}
+
+const buildDonutData = () => {
+  const monthKey = todayKey.value.slice(0, 7)
+  const totals = new Map<string, number>()
+  ledgerRecords.value
+    .filter((row) => row.type === 'expense' && row.date.startsWith(monthKey))
+    .forEach((row) => {
+      totals.set(row.category, (totals.get(row.category) || 0) + row.amount)
+    })
+  const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1])
+  const top = sorted.slice(0, 3)
+  const rest = sorted.slice(3).reduce((sum, [, value]) => sum + value, 0)
+  const data = top.map(([name, value]) => ({ name, value: Number(value.toFixed(2)) }))
+  if (rest > 0) data.push({ name: '其他', value: Number(rest.toFixed(2)) })
+  return data.length ? data : [{ name: '暂无支出', value: 0.01 }]
+}
+
+const updateDonutChart = () => {
+  if (!donutChartRef.value) return
+  const tokens = getThemeTokens()
+  if (!donutChart) {
+    donutChart = echarts.init(donutChartRef.value)
+  }
+  const data = buildDonutData()
+  donutChart.setOption({
+    tooltip: { trigger: 'item' },
+    legend: {
+      bottom: 0,
+      textStyle: { color: tokens.muted, fontSize: 12 }
+    },
+    series: [
+      {
+        name: '本月支出',
+        type: 'pie',
+        radius: ['55%', '75%'],
+        center: ['50%', '42%'],
+        avoidLabelOverlap: true,
+        label: { show: false },
+        data
+      }
+    ]
+  })
+}
+
+const updateCharts = () => {
+  updateFlowChart()
+  updateDonutChart()
+}
 const formatTimeRange = (startAt?: string, endAt?: string, time?: string) => {
   const start = startAt ? startAt.replace('T', ' ') : ''
   const end = endAt ? endAt.replace('T', ' ') : ''
@@ -522,100 +386,11 @@ const fetchUpcoming = async () => {
   }
 }
 
-const openEdit = (task: Task) => {
-  editingId.value = task.id
-  form.value = {
-    title: task.title,
-    category: task.category,
-    priority: task.priority,
-    due: task.due,
-    icon: task.icon
-  }
-  modalOpen.value = true
-}
-
-const saveTask = async () => {
-  if (!form.value.title.trim()) return
-  try {
-    if (editingId.value) {
-      await apiFetch(`/tasks/${editingId.value}`, {
-        method: 'PATCH',
-        body: {
-          title: form.value.title,
-          category: form.value.category,
-          priority: form.value.priority,
-          due: form.value.due,
-          icon: form.value.icon
-        }
-      })
-    } else {
-      await apiFetch('/tasks', {
-        method: 'POST',
-        body: {
-          title: form.value.title,
-          category: form.value.category,
-          priority: form.value.priority,
-          due: form.value.due,
-          icon: form.value.icon
-        }
-      })
-    }
-    await fetchTasks()
-  } catch {
-    // ignore
-  }
-  modalOpen.value = false
-}
-
-const removeTask = async (id: string | number) => {
-  try {
-    await apiFetch(`/tasks/${id}`, { method: 'DELETE' })
-    await fetchTasks()
-  } catch {
-    // ignore
-  }
-}
-
-const goWeeklyReport = () => {
-  router.push('/stats')
-}
-
-const openCalendar = () => {
-  calendarOpen.value = true
-}
-
 const getUpcomingStatusLabel = (status: UpcomingStatus) => {
   if (status === 'done') return '已完成'
   if (status === 'overdue') return '逾期'
   return '待办'
 }
-
-const toggleUpcomingStatus = async (item: UpcomingItem) => {
-  item.status = item.status === 'done' ? 'todo' : 'done'
-  try {
-    await apiFetch(`/calendar/events/${item.id}`, {
-      method: 'PATCH',
-      body: {
-        status: item.status
-      }
-    })
-  } catch {
-    // ignore
-  }
-}
-
-const calendarEvents = computed<CalendarEvent[]>(() =>
-  upcoming.value.map((item) => ({
-    date: item.date,
-    title: item.title,
-    time: item.time,
-    status: resolveStatus(item),
-    sourceType: item.sourceType,
-    startAt: item.startAt,
-    endAt: item.endAt
-  }))
-)
-
 const toLocalDateKey = (date = new Date()) => {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -623,7 +398,7 @@ const toLocalDateKey = (date = new Date()) => {
   return `${y}-${m}-${d}`
 }
 
-const now = shallowRef(new Date())
+const now = ref(new Date())
 const todayKey = computed(() => toLocalDateKey(now.value))
 let todayTimer: ReturnType<typeof setInterval> | null = null
 const getItemRange = (item: UpcomingItem) => {
@@ -667,27 +442,36 @@ const hasUpcomingSplit = computed(() =>
 
 onMounted(async () => {
   if (typeof window === 'undefined') return
-  const params = new URLSearchParams(window.location.search)
-  if (params.get('pomodoro') === '1') {
-    openPomodoro()
-  }
-  if (params.get('calendar') === '1') {
-    calendarOpen.value = true
-  }
 
   todayTimer = window.setInterval(() => {
     now.value = new Date()
   }, 60 * 1000)
 
-  await Promise.all([loadCurrentUser(), fetchOverview(), fetchTasks(), fetchHabits(), fetchUpcoming(), fetchLedgerRecords()])
+  await Promise.all([loadCurrentUser(), fetchOverview(), fetchTasks(), fetchUpcoming(), fetchLedgerRecords()])
+  await nextTick()
+  updateCharts()
+  window.addEventListener('resize', updateCharts)
 })
+
+watch([ledgerRecords, theme], () => {
+  nextTick(updateCharts)
+}, { deep: true })
+
 
 onUnmounted(() => {
   if (todayTimer) {
     clearInterval(todayTimer)
     todayTimer = null
   }
-  stopTimer()
+  window.removeEventListener('resize', updateCharts)
+  if (flowChart) {
+    flowChart.dispose()
+    flowChart = null
+  }
+  if (donutChart) {
+    donutChart.dispose()
+    donutChart = null
+  }
 })
 </script>
 
@@ -702,7 +486,7 @@ onUnmounted(() => {
       <nav class="nav-items">
         <button
           v-for="item in navItems"
-          :key="item.path"
+          :key="item.label"
           class="nav-item"
           :class="route.path === item.path && 'active'"
           @click="router.push(item.path)"
@@ -711,7 +495,7 @@ onUnmounted(() => {
         </button>
       </nav>
       <div class="nav-footer">
-        <button class="nav-item">
+        <button class="nav-item" @click="router.push('/settings')">
           <Icon icon="mdi:cog-outline" />
         </button>
       </div>
@@ -745,52 +529,27 @@ onUnmounted(() => {
             <div class="panel-head">
               <div>
                 <h3>收支趋势</h3>
-                <p class="muted">现金流趋势 · 示例走势</p>
+                <p class="muted">近 7 天趋势</p>
               </div>
-              <button class="ghost" @click="goWeeklyReport">查看全部</button>
             </div>
             <div class="flow-chart">
-              <svg class="flow-svg" :viewBox="`0 0 ${flowWidth} ${flowHeight}`">
-                <polyline :points="flowLineA" class="flow-line line-a" />
-                <polyline :points="flowLineB" class="flow-line line-b" />
-              </svg>
-              <div class="flow-legend">
-                <span><span class="legend-dot income"></span>收入</span>
-                <span><span class="legend-dot expense"></span>支出</span>
-              </div>
+              <div ref="flowChartRef" class="flow-echart"></div>
             </div>
           </div>
 
           <div class="panel available">
             <div class="panel-head">
               <h3>可用额度</h3>
-              <button class="ghost">查看全部</button>
             </div>
             <div class="available-body">
-              <div class="donut">
+              <div class="donut-chart">
+                <div ref="donutChartRef" class="donut-echart"></div>
                 <div class="donut-center">
-                  <p>Total 支出s</p>
-                  <h4>¥ {{ month支出.toFixed(2) }}</h4>
+                  <p>本月支出</p>
+                  <h4>¥ {{ monthExpense.toFixed(2) }}</h4>
                 </div>
               </div>
-              <div class="donut-legend">
-                <div><span class="legend-dot food"></span> 餐饮</div>
-                <div><span class="legend-dot home"></span> 居家</div>
-                <div><span class="legend-dot other"></span> 其他</div>
-              </div>
             </div>
-          </div>
-
-          <div class="panel income-card">
-            <h4>收入</h4>
-            <h2>¥ {{ (month支出 * 1.12).toFixed(2) }}</h2>
-            <p class="muted">本周收入</p>
-          </div>
-
-          <div class="panel expense-card">
-            <h4>支出</h4>
-            <h2>¥ {{ month支出.toFixed(2) }}</h2>
-            <p class="muted">本周支出</p>
           </div>
 
           <div class="panel tasks">
@@ -799,11 +558,10 @@ onUnmounted(() => {
                 <h3>今日任务</h3>
                 <p class="muted">共 {{ todayTasks.length }} 项 · 已完成 {{ completed }} · 进行中 {{ inProgress }}</p>
               </div>
-              <button class="primary" @click="openCreate">新建任务</button>
             </div>
             <ul class="task-list">
-              <li v-for="task in filteredTasks" :key="task.id" class="task-item">
-                <div class="task-icon" @click="toggleDone(task)">
+              <li v-for="task in todayTasks.slice(0, 5)" :key="task.id" class="task-item">
+                <div class="task-icon">
                   <Icon :icon="task.icon" />
                 </div>
                 <div class="task-body">
@@ -814,10 +572,6 @@ onUnmounted(() => {
                     <span class="tag">{{ task.due }}</span>
                   </div>
                 </div>
-                <div class="task-actions">
-                  <button class="ghost" @click="openEdit(task)">编辑</button>
-                  <button class="ghost danger" @click="removeTask(task.id)">删除</button>
-                </div>
               </li>
             </ul>
           </div>
@@ -827,12 +581,15 @@ onUnmounted(() => {
           <div class="panel card-stack">
             <div class="panel-head">
               <h3>我的卡片</h3>
-              <button class="ghost">查看全部</button>
             </div>
             <div class="card-preview">
               <p>账户余额</p>
-              <h2>¥ {{ (month支出 * 3.2 + 1280).toFixed(2) }}</h2>
-              <p class="muted">今日支出 ¥ {{ today支出.toFixed(2) }}</p>
+              <h2>¥ {{ (monthExpense * 3.2 + 1280).toFixed(2) }}</h2>
+              <div class="card-metrics">
+                <span>本月收入 ¥ {{ monthIncome.toFixed(2) }}</span>
+                <span>本月支出 ¥ {{ monthExpense.toFixed(2) }}</span>
+              </div>
+              <p class="muted">今日支出 ¥ {{ todayExpense.toFixed(2) }}</p>
               <div class="card-row">
                 <span>**** 2323</span>
                 <span>08/24</span>
@@ -840,10 +597,10 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="panel transactions">
+          <div class="panel summary">
             <div class="panel-head">
               <div>
-                <h3>交易记录</h3>
+                <h3>收支摘要</h3>
                 <div class="tx-legend">
                   <span><Icon icon="mdi:arrow-up" /> 收入</span>
                   <span><Icon icon="mdi:arrow-down" /> 支出</span>
@@ -851,29 +608,38 @@ onUnmounted(() => {
               </div>
               <button class="ghost" @click="router.push('/ledger')">查看全部</button>
             </div>
-            <div v-if="!recentLedger.length" class="empty-state">暂无记录</div>
-            <ul v-else class="tx-list">
-              <li v-for="item in recentLedger" :key="item.id" class="tx-item">
-                <div class="tx-icon" :class="item.type">
-                  <Icon :icon="item.type === 'income' ? 'mdi:arrow-up' : 'mdi:arrow-down'" />
-                </div>
-                <div class="tx-body">
-                  <div class="tx-title">{{ item.note || item.category }}</div>
-                  <div class="tx-meta">{{ item.category }} · {{ item.date }}</div>
-                </div>
-                <div class="tx-amount" :class="item.type">
-                  {{ item.type === 'income' ? '+' : '-' }}¥ {{ item.amount.toFixed(2) }}
-                </div>
-              </li>
-            </ul>
+            <div class="summary-grid">
+              <div class="summary-item income">
+                <p>本月收入</p>
+                <h3>¥ {{ monthIncome.toFixed(2) }}</h3>
+              </div>
+              <div class="summary-item expense">
+                <p>本月支出</p>
+                <h3>¥ {{ monthExpense.toFixed(2) }}</h3>
+              </div>
+            </div>
+            <div class="summary-list">
+              <div v-if="!recentLedger.length" class="empty-state">暂无记录</div>
+              <ul v-else class="tx-list">
+                <li v-for="item in recentLedger" :key="item.id" class="tx-item">
+                  <div class="tx-icon" :class="item.type">
+                    <Icon :icon="item.type === 'income' ? 'mdi:arrow-up' : 'mdi:arrow-down'" />
+                  </div>
+                  <div class="tx-body">
+                    <div class="tx-title">{{ item.note || item.category }}</div>
+                    <div class="tx-meta">{{ item.category }} · {{ item.date }}</div>
+                  </div>
+                  <div class="tx-amount" :class="item.type">
+                    {{ item.type === 'income' ? '+' : '-' }}¥ {{ item.amount.toFixed(2) }}
+                  </div>
+                </li>
+              </ul>
+            </div>
           </div>
-
-          
 
           <div class="panel schedule">
             <div class="panel-head">
               <h3>日程</h3>
-              <button class="ghost" @click="openCalendar">日历</button>
             </div>
             <div class="schedule-stats">
               <span>待办 {{ todayTasks.length }} 项</span>
@@ -884,7 +650,6 @@ onUnmounted(() => {
                 v-for="item in todayItems.slice(0, 3)"
                 :key="item.id"
                 class="schedule-item"
-                @click="toggleUpcomingStatus(item)"
               >
                 <span class="schedule-status">{{ getUpcomingStatusLabel(resolveStatus(item)) }}</span>
                 <span class="schedule-title">{{ item.title }}</span>
@@ -892,97 +657,17 @@ onUnmounted(() => {
               <div v-if="hasUpcomingSplit" class="muted">含跨日安排</div>
             </div>
             <div v-else class="muted">暂无安排</div>
-            <button class="primary" @click="openPomodoro">开始专注</button>
           </div>
         </aside>
       </div>
     </div>
-
-    <Transition name="backdrop-fade">
-      <div v-if="modalOpen" class="modal-backdrop" @click.self="modalOpen = false">
-        <div class="modal">
-          <div class="modal-head">
-            <h3>{{ editingId ? '编辑任务' : '新建任务' }}</h3>
-            <button class="ghost" @click="modalOpen = false">关闭</button>
-          </div>
-          <div class="modal-body">
-            <label>
-              <span>标题</span>
-              <input v-model="form.title" placeholder="请输入任务标题" />
-            </label>
-            <label>
-              <span>分类</span>
-              <select v-model="form.category">
-                <option v-for="item in categories" :key="item">{{ item }}</option>
-              </select>
-            </label>
-            <label>
-              <span>优先级</span>
-              <select v-model="form.priority">
-                <option v-for="item in priorities" :key="item" :value="item">{{ item }}</option>
-              </select>
-            </label>
-            <label>
-              <span>截止</span>
-              <input v-model="form.due" placeholder="例如：今天 18:00" />
-            </label>
-          </div>
-          <div class="modal-actions">
-            <button class="ghost" @click="modalOpen = false">取消</button>
-            <button class="primary" @click="saveTask">保存</button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <Transition name="backdrop-fade">
-      <div v-if="pomodoroOpen" class="pomodoro-backdrop" @click.self="closePomodoro">
-        <div class="pomodoro">
-          <button class="pomodoro-exit ghost" @click="closePomodoro">退出</button>
-
-          <div class="pomodoro-center">
-            <div class="pomodoro-ring">
-              <div class="pomodoro-time">{{ formattedTime }}</div>
-              <div class="pomodoro-meta">
-                <span class="kicker">沉浸专注</span>
-                <span class="mode">{{ modeLabel }} · {{ roundLabel }}</span>
-              </div>
-            </div>
-            <p class="muted">默认 30 分钟 / 10 分钟休息 / 每 4 轮</p>
-          </div>
-
-          <div class="pomodoro-actions">
-            <button class="primary" @click="startPomodoro" v-if="pomodoro.status !== 'running'">开始</button>
-            <button class="ghost" @click="pausePomodoro" v-else>暂停</button>
-            <button class="ghost" @click="stopPomodoro">结束</button>
-            <button class="ghost" @click="skipPhase" v-if="pomodoro.mode !== 'focus'">跳过休息</button>
-          </div>
-
-          <div class="music-box">
-            <div>
-              <h4>音乐接入预留</h4>
-              <p class="muted">后续接入外部播放器 / 白噪音 / 个人歌单</p>
-            </div>
-            <div class="music-controls">
-              <button class="ghost">上一首</button>
-              <button class="ghost">播放</button>
-              <button class="ghost">下一首</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <CalendarModal :open="calendarOpen" :events="calendarEvents" @close="calendarOpen = false" />
   </div>
 </template>
 
 
+
 <style scoped>
 .dashboard-layout {
-  display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
-  gap: 28px;
   padding: 28px;
 }
 
@@ -1058,6 +743,7 @@ onUnmounted(() => {
 .dashboard-content {
   display: grid;
   gap: 24px;
+  margin-left: 112px;
 }
 
 .dashboard-main {
@@ -1166,11 +852,12 @@ onUnmounted(() => {
 }
 
 .flow-chart {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 16px;
-  height: 180px;
-  align-items: end;
+  height: 200px;
+}
+
+.flow-echart {
+  width: 100%;
+  height: 200px;
 }
 
 .available {
@@ -1180,56 +867,7 @@ onUnmounted(() => {
 
 .available-body {
   display: grid;
-  grid-template-columns: 180px 1fr;
-  align-items: center;
-  gap: 16px;
-}
-
-.donut {
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  background: conic-gradient(color-mix(in srgb, var(--success) 70%, transparent) 0 40%, color-mix(in srgb, var(--accent) 60%, transparent) 40% 70%, color-mix(in srgb, var(--primary) 60%, transparent) 70% 100%);
-  display: grid;
   place-items: center;
-  position: relative;
-}
-
-.donut::after {
-  content: '';
-  width: 110px;
-  height: 110px;
-  background: color-mix(in srgb, var(--bg-1) 80%, transparent);
-  border-radius: 50%;
-  position: absolute;
-}
-
-.donut-center {
-  position: relative;
-  z-index: 1;
-  text-align: center;
-}
-
-.donut-legend {
-  display: grid;
-  gap: 10px;
-}
-
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  margin-right: 6px;
-}
-
-.legend-dot.food { background: #6ee7b7; }
-.legend-dot.home { background: #a78bfa; }
-.legend-dot.other { background: #38bdf8; }
-
-.income-card, .expense-card {
-  display: grid;
-  gap: 8px;
 }
 
 .tasks .task-list {
@@ -1257,7 +895,7 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-.transactions .tx-list {
+.tx-list {
   margin-top: 12px;
   display: grid;
   gap: 10px;
@@ -1266,14 +904,14 @@ onUnmounted(() => {
 }
 
 
-.transactions .tx-item {
+.tx-item {
   background: color-mix(in srgb, var(--surface) 90%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   padding: 10px 12px;
   border-radius: 14px;
 }
 
-.transactions .tx-body {
+.tx-body {
   display: grid;
   gap: 4px;
 }
@@ -1290,10 +928,36 @@ onUnmounted(() => {
   height: 14px;
 }
 
-.transactions .tx-amount {
+.tx-amount {
   font-weight: 600;
 }
 
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.summary-item {
+  padding: 12px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.summary-item.income h3 {
+  color: color-mix(in srgb, var(--success) 70%, var(--text));
+}
+
+.summary-item.expense h3 {
+  color: color-mix(in srgb, var(--accent) 70%, var(--text));
+}
+
+.summary-list {
+  margin-top: 8px;
+}
 @media (max-width: 1200px) {
   .dashboard-layout {
     grid-template-columns: 1fr;
