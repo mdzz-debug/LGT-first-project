@@ -88,7 +88,8 @@ const categoryIconMap: Record<string, string> = {
   健康: 'mdi:heart-pulse',
   学习: 'mdi:book-open-page-variant',
   生活: 'mdi:sofa-outline',
-  娱乐: 'mdi:gamepad-variant-outline'
+  娱乐: 'mdi:gamepad-variant-outline',
+  任务管理: 'mdi:clipboard-check-outline'
 }
 
 const resolveCategoryIcon = (category: string) =>

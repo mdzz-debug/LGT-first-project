@@ -57,7 +57,6 @@ const query = ref('')
 const filterType = ref<'all' | 'expense' | 'income'>('all')
 const filterCategory = ref('all')
 const selectedDate = shallowRef(new Date().toISOString().slice(0, 10))
-const datePickerRef = ref<HTMLInputElement | null>(null)
 
 const modalOpen = ref(false)
 const familyOverviewOpen = ref(false)
@@ -86,15 +85,6 @@ const filtered = computed(() => {
   })
 })
 
-const openDatePicker = () => {
-  const picker = datePickerRef.value
-  if (!picker) return
-  if (typeof (picker as HTMLInputElement).showPicker === 'function') {
-    picker.showPicker()
-  } else {
-    picker.click()
-  }
-}
 
 const totalIncome = computed(() =>
   records.value.filter((r) => r.type === 'income').reduce((sum, r) => sum + r.amount, 0)
@@ -472,12 +462,9 @@ onMounted(async () => {
             <h3>记账记录</h3>
             <p class="muted">共 {{ dailyRecords.length }} 条</p>
           </div>
-          <div class="ledger-list-actions">
-            <button class="ghost task-pill" @click="openDatePicker">
-              日历
-            </button>
-            <span class="date-chip">{{ selectedDate }}</span>
-            <input ref="datePickerRef" v-model="selectedDate" type="date" class="date-input" />
+          <div class="ledger-date">
+            <span class="date-label">日期</span>
+            <input v-model="selectedDate" type="date" class="date-input" />
           </div>
         </div>
 
@@ -670,29 +657,29 @@ onMounted(async () => {
   width: 100%;
 }
 
-.ledger-list-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
 
-.date-chip {
+.ledger-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 6px 10px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 80%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  font-variant-numeric: tabular-nums;
+}
+
+.ledger-date .date-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ledger-date .date-input {
+  border: none;
+  background: transparent;
+  color: var(--text);
   font-size: 12px;
 }
 
-.date-input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-  width: 1px;
-  height: 1px;
-}
 
 .ledger-stat-grid .stat-card {
   display: flex;
@@ -812,9 +799,9 @@ onMounted(async () => {
   .ledger-list-head {
     align-items: flex-start;
   }
-  .ledger-list-actions {
+  .ledger-date {
     width: 100%;
-    justify-content: flex-end;
+    justify-content: space-between;
   }
   .chart-row {
     grid-template-columns: 1fr;

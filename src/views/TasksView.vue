@@ -32,7 +32,8 @@ const categoryIconMap: Record<string, string> = {
   健康: 'mdi:heart-pulse',
   学习: 'mdi:book-open-page-variant',
   生活: 'mdi:sofa-outline',
-  娱乐: 'mdi:gamepad-variant-outline'
+  娱乐: 'mdi:gamepad-variant-outline',
+  任务管理: 'mdi:clipboard-check-outline'
 }
 
 const resolveCategoryIcon = (category: string) =>
@@ -105,7 +106,31 @@ const buildDefaultRange = () => {
   }
 }
 
+const toLocalDateKey = (date: Date) => {
+  const offset = date.getTimezoneOffset() * 60 * 1000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
+}
+
+const selectedDate = shallowRef(toLocalDateKey(new Date()))
+
+const getTaskRange = (task: Task) => {
+  const startDate = (task.startAt || task.dueDate || '').slice(0, 10)
+  const endDate = (task.endAt || task.dueDate || startDate).slice(0, 10)
+  return { startDate, endDate }
+}
+
 const tasks = ref<Task[]>([])
+
+const dailyTasks = computed(() =>
+  tasks.value.filter((task) => {
+    const { startDate, endDate } = getTaskRange(task)
+    if (!startDate || !endDate) return false
+    return startDate <= selectedDate.value && endDate >= selectedDate.value
+  })
+)
+
+const dailyCompleted = computed(() => dailyTasks.value.filter((t) => t.done).length)
+const dailyInProgress = computed(() => dailyTasks.value.filter((t) => !t.done).length)
 const loading = shallowRef(false)
 const error = shallowRef('')
 
@@ -142,7 +167,7 @@ const loadTaskCategories = async () => {
 }
 
 const filteredTasks = computed(() => {
-  return tasks.value.filter((task) => {
+  return dailyTasks.value.filter((task) => {
     const hitQuery = task.title.includes(query.value.trim())
     const hitStatus =
       statusFilter.value === 'all' ||
@@ -309,7 +334,11 @@ onMounted(() => {
         <div class="task-board-head">
           <div>
             <h2>任务管理</h2>
-            <p class="muted">共 {{ tasks.length }} 项 · 已完成 {{ completed }} · 进行中 {{ tasks.length - completed }}</p>
+            <p class="muted">共 {{ dailyTasks.length }} 项 · 已完成 {{ dailyCompleted }} · 进行中 {{ dailyInProgress }}</p>
+          </div>
+          <div class="task-date">
+            <span class="date-label">日期</span>
+            <input v-model="selectedDate" type="date" class="date-input" />
           </div>
           <button class="primary task-pill" @click="openCreate">新建任务</button>
         </div>
@@ -335,7 +364,7 @@ onMounted(() => {
 
         </div>
 
-        <div class="stat-grid compact">
+        <div class="stat-grid compact task-stat-grid">
           <div class="stat-card"><span>总任务</span><strong>{{ tasks.length }}</strong></div>
           <div class="stat-card"><span>已完成</span><strong>{{ completed }}</strong></div>
           <div class="stat-card"><span>完成度</span><strong>{{ completion }}%</strong></div>
@@ -414,3 +443,41 @@ onMounted(() => {
     </Transition>
   </div>
 </template>
+
+<style scoped>
+.task-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.task-date .date-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.task-date .date-input {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.task-stat-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .task-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .task-date {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+</style>
