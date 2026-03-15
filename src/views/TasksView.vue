@@ -330,7 +330,7 @@ onMounted(() => {
     <AppHeader />
 
     <main class="content">
-      <section class="panel glass">
+      <section class="panel glass task-overview">
         <div class="task-board-head">
           <div>
             <h2>任务管理</h2>
@@ -346,7 +346,10 @@ onMounted(() => {
           <div class="stat-card"><span>逾期</span><strong>{{ overdue }}</strong></div>
         </div>
 
-        <div class="panel task-list-card">
+        </section>
+
+      <section class="panel glass task-list-panel">
+
           <div class="task-list-head">
             <div>
               <h3>任务列表</h3>
@@ -404,7 +407,6 @@ onMounted(() => {
             </div>
           </li>
         </ul>
-        </div>
       </section>
     </main>
 
@@ -480,20 +482,23 @@ onMounted(() => {
 }
 
 
-.task-list-card {
-  margin-top: 16px;
-  padding: 16px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-}
-
 .task-list-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+
+.task-list-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.task-overview {
+  display: grid;
+  gap: 16px;
 }
 @media (max-width: 720px) {
   .task-stat-grid {
@@ -502,9 +507,6 @@ onMounted(() => {
   .task-date {
     width: 100%;
     justify-content: space-between;
-  }
-  .task-list-card {
-    padding: 14px;
   }
 }
 </style>
