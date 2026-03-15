@@ -484,11 +484,6 @@ onMounted(async () => {
             <p class="muted">本月支出总额</p>
           </div>
           <div class="chart-grid-wrap">
-            <div v-if="gridActiveInfo" class="grid-tooltip" @click="gridActive = null">
-              <strong>{{ gridActiveInfo.category }}</strong>
-              <span>{{ gridActiveInfo.percent }}%</span>
-              <span>¥ {{ formatAmount(gridActiveInfo.total) }}</span>
-            </div>
             <div class="chart-grid">
               <div
                 v-for="(tile, idx) in categoryGrid.tiles"
@@ -496,14 +491,16 @@ onMounted(async () => {
                 class="grid-tile"
                 :style="{ background: tile.color }"
                 :title="tile.category"
-                @click="toggleGridActive(tile.category)"
               ></div>
+              <div v-if="gridActiveInfo" class="grid-overlay" @click="gridActive = null">
+                {{ gridActiveInfo.category }} {{ gridActiveInfo.percent }}%
+              </div>
             </div>
             <div class="chart-legend">
-              <div v-for="item in categoryGrid.legend" :key="item.category" class="legend-row">
+              <div v-for="item in categoryGrid.legend" :key="item.category" class="legend-row" @click="toggleGridActive(item.category)">
                 <span class="dot" :style="{ background: item.color }"></span>
                 <span class="legend-name">{{ item.category }}</span>
-                                <span class="legend-amount">¥ {{ formatAmount(item.total) }}</span>
+                <span class="legend-amount">¥ {{ formatAmount(item.total) }}</span>
               </div>
             </div>
           </div>
@@ -778,16 +775,20 @@ onMounted(async () => {
 }
 
 
-.grid-tooltip {
-  display: inline-flex;
-  gap: 10px;
-  align-items: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  font-size: 12px;
-  color: var(--text);
+.chart-grid {
+  position: relative;
+}
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--text) 55%, transparent);
+  pointer-events: auto;
+  text-align: center;
 }
 
 .chart-grid {
