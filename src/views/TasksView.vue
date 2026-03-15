@@ -22,8 +22,44 @@ type Task = {
   icon: string
 }
 
-const categories = ['家庭', '工作', '健康', '学习']
+const defaultCategories = ['家庭', '工作', '健康', '学习']
+const categories = ref<string[]>([...defaultCategories])
 const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
+
+const categoryIconMap: Record<string, string> = {
+  家庭: 'mdi:home-heart',
+  工作: 'mdi:briefcase-outline',
+  健康: 'mdi:heart-pulse',
+  学习: 'mdi:book-open-page-variant',
+  生活: 'mdi:sofa-outline',
+  娱乐: 'mdi:gamepad-variant-outline'
+}
+
+const resolveCategoryIcon = (category: string) =>
+  categoryIconMap[category] || 'mdi:checkbox-marked-circle-outline'
+
+const normalizeTaskIcon = (raw: string | undefined | null, category: string) => {
+  const icon = (raw || '').trim()
+  if (!icon) return resolveCategoryIcon(category)
+  if (icon.includes(':')) return icon
+  if (icon === 'heart') return 'mdi:heart-pulse'
+  return resolveCategoryIcon(category)
+}
+
+const getTaskIcon = (task: Task) => normalizeTaskIcon(task.icon, task.category)
+
+const mergeCategories = (next: string[]) => {
+  const merged = new Set([...defaultCategories, ...next.filter(Boolean)])
+  categories.value = Array.from(merged)
+}
+
+const syncCategoriesFromTasks = () => {
+  const merged = new Set(categories.value)
+  tasks.value.forEach((task) => {
+    if (task.category) merged.add(task.category)
+  })
+  categories.value = Array.from(merged)
+}
 
 const pad = (value: number) => String(value).padStart(2, '0')
 const toDateTimeLocal = (value?: string) => {
@@ -89,12 +125,21 @@ const form = ref<{
   icon: string
 }>({
   title: '',
-  category: categories[0] ?? '家庭',
+  category: categories.value[0] ?? '家庭',
   priority: priorities[1] ?? 'P2',
   startAt: '',
   endAt: '',
-  icon: 'mdi:checkbox-marked-circle-outline'
+  icon: resolveCategoryIcon(categories.value[0] ?? '家庭')
 })
+
+const loadTaskCategories = async () => {
+  try {
+    const data = await apiFetch<string[]>('/tasks/categories')
+    mergeCategories(data)
+  } catch {
+    // ignore
+  }
+}
 
 const filteredTasks = computed(() => {
   return tasks.value.filter((task) => {
@@ -126,11 +171,11 @@ const openCreate = () => {
   const { startAt, endAt } = buildDefaultRange()
   form.value = {
     title: '',
-    category: categories[0] ?? '家庭',
+    category: categories.value[0] ?? '家庭',
     priority: priorities[1] ?? 'P2',
     startAt,
     endAt,
-    icon: 'mdi:checkbox-marked-circle-outline'
+    icon: resolveCategoryIcon(categories.value[0] ?? '家庭')
   }
   modalOpen.value = true
 }
@@ -143,7 +188,7 @@ const openEdit = (task: Task) => {
     priority: task.priority,
     startAt: toDateTimeLocal(task.startAt),
     endAt: toDateTimeLocal(task.endAt),
-    icon: task.icon
+    icon: getTaskIcon(task)
   }
   modalOpen.value = true
 }
@@ -167,9 +212,10 @@ const fetchTasks = async () => {
         dueDate,
         rangeLabel: buildRangeLabel(startAt, endAt, dueDate),
         done: !!item.done,
-        icon: item.icon || 'mdi:checkbox-marked-circle-outline'
+        icon: normalizeTaskIcon(item.icon, item.category)
       }
     })
+    syncCategoriesFromTasks()
   } catch (err: any) {
     error.value = err?.message || '任务加载失败'
   } finally {
@@ -184,7 +230,8 @@ const toggleDone = async (task: Task) => {
       method: 'PATCH',
       body: { done: task.done }
     })
-    await fetchTasks()
+    await Promise.all([loadTaskCategories(), fetchTasks()])
+    if (form.value.category) mergeCategories([form.value.category])
   } catch {
     pushToast('任务状态更新失败', 'error')
   }
@@ -194,6 +241,7 @@ const saveTask = async () => {
   if (!form.value.title.trim()) return
   try {
     if (editingId.value) {
+      const icon = normalizeTaskIcon(form.value.icon, form.value.category)
       await apiFetch(`/tasks/${editingId.value}`, {
         method: 'PATCH',
         body: {
@@ -202,11 +250,12 @@ const saveTask = async () => {
           priority: form.value.priority,
           start_at: toServerDateTime(form.value.startAt),
           end_at: toServerDateTime(form.value.endAt),
-          icon: form.value.icon
+          icon
         }
       })
       pushToast('任务已更新', 'success')
     } else {
+      const icon = normalizeTaskIcon(form.value.icon, form.value.category)
       await apiFetch('/tasks', {
         method: 'POST',
         body: {
@@ -215,12 +264,13 @@ const saveTask = async () => {
           priority: form.value.priority,
           start_at: toServerDateTime(form.value.startAt),
           end_at: toServerDateTime(form.value.endAt),
-          icon: form.value.icon
+          icon
         }
       })
       pushToast('任务已创建', 'success')
     }
-    await fetchTasks()
+    await Promise.all([loadTaskCategories(), fetchTasks()])
+    if (form.value.category) mergeCategories([form.value.category])
   } catch {
     pushToast('任务保存失败', 'error')
   }
@@ -236,14 +286,18 @@ const removeTask = async (id: string | number, evt?: MouseEvent) => {
   flyToRecycle(sourceEl)
   try {
     await apiFetch(`/tasks/${id}`, { method: 'DELETE' })
-    await fetchTasks()
+    await Promise.all([loadTaskCategories(), fetchTasks()])
+    if (form.value.category) mergeCategories([form.value.category])
     pushToast('任务已删除（已进入回收站）', 'success')
   } catch {
     pushToast('任务删除失败', 'error')
   }
 }
 
-onMounted(fetchTasks)
+onMounted(() => {
+  loadTaskCategories()
+  fetchTasks()
+})
 </script>
 
 <template>
@@ -295,7 +349,7 @@ onMounted(fetchTasks)
         <ul v-else class="task-list">
           <li v-for="task in filteredTasks" :key="task.id" class="task-item">
             <div class="task-icon" @click="toggleDone(task)">
-              <Icon :icon="task.icon" />
+              <Icon :icon="getTaskIcon(task)" />
             </div>
             <div class="task-body">
               <div class="task-title" :class="task.done && 'done'">{{ task.title }}</div>
@@ -331,9 +385,10 @@ onMounted(fetchTasks)
             </label>
             <label>
               <span>分类</span>
-              <select v-model="form.category">
-                <option v-for="item in categories" :key="item">{{ item }}</option>
-              </select>
+              <input v-model="form.category" list="task-categories" placeholder="选择或输入分类" />
+              <datalist id="task-categories">
+                <option v-for="item in categories" :key="item" :value="item" />
+              </datalist>
             </label>
             <label>
               <span>优先级</span>

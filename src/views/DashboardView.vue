@@ -47,6 +47,9 @@ type Task = {
   category: string
   priority: 'P1' | 'P2' | 'P3'
   due: string
+  dueDate?: string
+  startAt?: string
+  endAt?: string
   done: boolean
   icon: string
 }
@@ -75,8 +78,44 @@ type PomodoroState = {
   completedRounds: number
 }
 
-const categories = ['家庭', '工作', '健康', '学习']
+const defaultCategories = ['家庭', '工作', '健康', '学习']
+const categories = ref<string[]>([...defaultCategories])
 const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
+
+const categoryIconMap: Record<string, string> = {
+  家庭: 'mdi:home-heart',
+  工作: 'mdi:briefcase-outline',
+  健康: 'mdi:heart-pulse',
+  学习: 'mdi:book-open-page-variant',
+  生活: 'mdi:sofa-outline',
+  娱乐: 'mdi:gamepad-variant-outline'
+}
+
+const resolveCategoryIcon = (category: string) =>
+  categoryIconMap[category] || 'mdi:checkbox-marked-circle-outline'
+
+const normalizeTaskIcon = (raw: string | undefined | null, category: string) => {
+  const icon = (raw || '').trim()
+  if (!icon) return resolveCategoryIcon(category)
+  if (icon.includes(':')) return icon
+  if (icon === 'heart') return 'mdi:heart-pulse'
+  return resolveCategoryIcon(category)
+}
+
+const getTaskIcon = (task: Task) => normalizeTaskIcon(task.icon, task.category)
+
+const mergeCategories = (next: string[]) => {
+  const merged = new Set([...defaultCategories, ...next.filter(Boolean)])
+  categories.value = Array.from(merged)
+}
+
+const syncCategoriesFromTasks = () => {
+  const merged = new Set(categories.value)
+  tasks.value.forEach((task) => {
+    if (task.category) merged.add(task.category)
+  })
+  categories.value = Array.from(merged)
+}
 
 const tasks = ref<Task[]>([])
 
@@ -128,10 +167,10 @@ const form = ref<{
   icon: string
 }>({
   title: '',
-  category: categories[0] ?? '家庭',
+  category: categories.value[0] ?? '家庭',
   priority: priorities[1] ?? 'P2',
   due: '',
-  icon: 'mdi:checkbox-marked-circle-outline'
+  icon: resolveCategoryIcon(categories.value[0] ?? '家庭')
 })
 
 const settingsKey = 'pulse.pomodoro.settings'
@@ -286,8 +325,35 @@ const roundLabel = computed(() => {
   return `第 ${current} / ${settings.value.longBreakEvery} 轮`
 })
 
+const toLocalDateKey = (date: Date) => {
+  const offset = date.getTimezoneOffset() * 60 * 1000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
+}
+
+const todayTaskKey = computed(() => toLocalDateKey(new Date()))
+
+const getTaskRange = (task: Task) => {
+  const startDate = (task.startAt || task.dueDate || task.due || '').slice(0, 10)
+  const endDate = (task.endAt || task.dueDate || task.due || startDate).slice(0, 10)
+  return { startDate, endDate }
+}
+
+const todayTasks = computed(() =>
+  tasks.value.filter((task) => {
+    const { startDate, endDate } = getTaskRange(task)
+    if (!startDate || !endDate) return false
+    return startDate <= todayTaskKey.value && endDate >= todayTaskKey.value
+  })
+)
+
+const todayCompleted = computed(() => todayTasks.value.filter((t) => t.done).length)
+const todayInProgress = computed(() => todayTasks.value.filter((t) => !t.done).length)
+const todayCompletion = computed(() =>
+  todayTasks.value.length ? Math.round((todayCompleted.value / todayTasks.value.length) * 100) : 0
+)
+
 const filteredTasks = computed(() => {
-  return tasks.value.filter((task) => {
+  return todayTasks.value.filter((task) => {
     const hitQuery = task.title.includes(query.value.trim())
     const hitStatus =
       statusFilter.value === 'all' ||
@@ -306,9 +372,6 @@ const overview = ref({
 })
 
 const completed = computed(() => tasks.value.filter((t) => t.done).length)
-const completion = computed(() =>
-  tasks.value.length ? Math.round((completed.value / tasks.value.length) * 100) : overview.value.completionRate
-)
 const focusMinutes = computed(() =>
   tasks.value.length ? completed.value * 25 : overview.value.focusMinutes
 )
@@ -332,12 +395,22 @@ const openCreate = () => {
   editingId.value = null
   form.value = {
     title: '',
-    category: categories[0] ?? '家庭',
+    category: categories.value[0] ?? '家庭',
     priority: priorities[1] ?? 'P2',
     due: '',
-    icon: 'mdi:checkbox-marked-circle-outline'
+    icon: resolveCategoryIcon(categories.value[0] ?? '家庭')
   }
   modalOpen.value = true
+}
+
+
+const loadTaskCategories = async () => {
+  try {
+    const data = await apiFetch<string[]>('/tasks/categories')
+    mergeCategories(data)
+  } catch {
+    // ignore
+  }
 }
 
 const fetchTasks = async () => {
@@ -349,9 +422,13 @@ const fetchTasks = async () => {
       category: item.category,
       priority: item.priority,
       due: item.due_date ?? item.due,
+      dueDate: item.due_date ?? item.due,
+      startAt: item.start_at || item.startAt,
+      endAt: item.end_at || item.endAt,
       done: !!item.done,
-      icon: item.icon || 'mdi:checkbox-marked-circle-outline'
+      icon: normalizeTaskIcon(item.icon, item.category)
     }))
+    syncCategoriesFromTasks()
   } catch {
     pushToast('任务加载失败', 'error')
   }
@@ -443,6 +520,7 @@ const saveTask = async () => {
   if (!form.value.title.trim()) return
   try {
     if (editingId.value) {
+      const icon = normalizeTaskIcon(form.value.icon, form.value.category)
       await apiFetch(`/tasks/${editingId.value}`, {
         method: 'PATCH',
         body: {
@@ -450,10 +528,11 @@ const saveTask = async () => {
           category: form.value.category,
           priority: form.value.priority,
           due: form.value.due,
-          icon: form.value.icon
+          icon
         }
       })
     } else {
+      const icon = normalizeTaskIcon(form.value.icon, form.value.category)
       await apiFetch('/tasks', {
         method: 'POST',
         body: {
@@ -461,11 +540,12 @@ const saveTask = async () => {
           category: form.value.category,
           priority: form.value.priority,
           due: form.value.due,
-          icon: form.value.icon
+          icon
         }
       })
     }
     await fetchTasks()
+    if (form.value.category) mergeCategories([form.value.category])
   } catch {
     // ignore
   }
@@ -476,6 +556,7 @@ const removeTask = async (id: string | number) => {
   try {
     await apiFetch(`/tasks/${id}`, { method: 'DELETE' })
     await fetchTasks()
+    if (form.value.category) mergeCategories([form.value.category])
   } catch {
     // ignore
   }
@@ -567,7 +648,7 @@ onMounted(async () => {
     calendarOpen.value = true
   }
 
-  await Promise.all([loadCurrentUser(), fetchOverview(), fetchTasks(), fetchHabits(), fetchUpcoming()])
+  await Promise.all([loadCurrentUser(), fetchOverview(), loadTaskCategories(), fetchTasks(), fetchHabits(), fetchUpcoming()])
 })
 
 onUnmounted(() => {
@@ -598,10 +679,10 @@ onUnmounted(() => {
             <div class="overview-card">
               <div>
                 <p class="muted">今日完成度</p>
-                <h2>{{ completion }}%</h2>
+                <h2>{{ todayCompletion }}%</h2>
               </div>
               <div class="progress ring">
-                <div class="bar" :style="{ width: completion + '%' }"></div>
+                <div class="bar" :style="{ width: todayCompletion + '%' }"></div>
               </div>
               <span class="overview-watermark">
                 <Icon icon="mdi:check-circle-outline" />
@@ -641,7 +722,7 @@ onUnmounted(() => {
           <div class="task-board-head">
             <div>
               <h3>今日任务</h3>
-              <p class="muted">共 {{ tasks.length }} 项 · 已完成 {{ completed }} · 进行中 {{ tasks.length - completed }}</p>
+              <p class="muted">共 {{ todayTasks.length }} 项 · 已完成 {{ todayCompleted }} · 进行中 {{ todayInProgress }}</p>
             </div>
             <button class="primary task-pill" @click="openCreate">新建任务</button>
           </div>
@@ -670,7 +751,7 @@ onUnmounted(() => {
           <ul class="task-list">
             <li v-for="task in filteredTasks" :key="task.id" class="task-item">
               <div class="task-icon" @click="toggleDone(task)">
-                <Icon :icon="task.icon" />
+                <Icon :icon="getTaskIcon(task)" />
               </div>
               <div class="task-body">
                 <div class="task-title" :class="task.done && 'done'">{{ task.title }}</div>
@@ -790,9 +871,10 @@ onUnmounted(() => {
             </label>
             <label>
               <span>分类</span>
-              <select v-model="form.category">
-                <option v-for="item in categories" :key="item">{{ item }}</option>
-              </select>
+              <input v-model="form.category" list="task-categories" placeholder="选择或输入分类" />
+              <datalist id="task-categories">
+                <option v-for="item in categories" :key="item" :value="item" />
+              </datalist>
             </label>
             <label>
               <span>优先级</span>
