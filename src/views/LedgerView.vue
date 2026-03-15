@@ -491,9 +491,11 @@ onMounted(async () => {
                 class="grid-tile"
                 :style="{ background: tile.color }"
                 :title="tile.category"
+                @click="toggleGridActive(tile.category)"
               ></div>
               <div v-if="gridActiveInfo" class="grid-overlay" @click="gridActive = null">
-                {{ gridActiveInfo.category }} {{ gridActiveInfo.percent }}%
+                <span class="overlay-name">{{ gridActiveInfo.category }}</span>
+                <span class="overlay-percent">{{ gridActiveInfo.percent }}%</span>
               </div>
             </div>
             <div class="chart-legend">
@@ -779,16 +781,33 @@ onMounted(async () => {
   position: relative;
 }
 
+.grid-tile {
+  cursor: pointer;
+}
+
 .grid-overlay {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
+  gap: 4px;
   font-size: 18px;
   font-weight: 600;
   color: color-mix(in srgb, var(--text) 55%, transparent);
+  background: color-mix(in srgb, var(--surface) 40%, transparent);
+  border-radius: 8px;
   pointer-events: auto;
   text-align: center;
+  z-index: 1;
+}
+
+.grid-overlay .overlay-name {
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.grid-overlay .overlay-percent {
+  font-size: 22px;
 }
 
 .chart-grid {
