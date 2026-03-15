@@ -183,7 +183,7 @@ const completion = computed(() =>
   tasks.value.length ? Math.round((completed.value / tasks.value.length) * 100) : 0
 )
 const overdue = computed(() => {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = toLocalDateKey(new Date())
   return tasks.value.filter((t) => {
     if (t.done) return false
     const date = t.endAt ? t.endAt.slice(0, 10) : t.dueDate

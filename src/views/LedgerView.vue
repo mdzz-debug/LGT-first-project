@@ -58,7 +58,12 @@ const familySummary = ref<FamilySummary>({
 const query = ref('')
 const filterType = ref<'all' | 'expense' | 'income'>('all')
 const filterCategory = ref('all')
-const selectedDate = shallowRef(new Date().toISOString().slice(0, 10))
+const toLocalDateKey = (date: Date) => {
+  const offset = date.getTimezoneOffset() * 60 * 1000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
+}
+
+const selectedDate = shallowRef(toLocalDateKey(new Date()))
 
 const modalOpen = ref(false)
 const familyOverviewOpen = ref(false)
@@ -312,7 +317,7 @@ const openCreate = () => {
     type: 'expense',
     category: categories.value[0] ?? '其他',
     amount: 0,
-    date: new Date().toISOString().slice(0, 10),
+    date: toLocalDateKey(new Date()),
     note: ''
   }
   modalOpen.value = true
@@ -432,6 +437,7 @@ onMounted(async () => {
             :tiles="categoryWaffle.tiles"
             :legend="categoryWaffle.legend"
             :amount-formatter="formatAmount"
+            :size="220"
           />
         </div>
         <div v-else class="rose-empty">暂无支出数据</div>
@@ -583,6 +589,7 @@ onMounted(async () => {
                       :tiles="familyWaffle.tiles"
                       :legend="familyWaffle.legend"
                       :amount-formatter="formatAmount"
+                      :size="200"
                     />
                   </div>
                   <div class="family-waffle-total">支出总额 ¥ {{ formatAmount(totalExpense) }}</div>

@@ -7,6 +7,8 @@ const props = defineProps<{
   legend: WaffleLegend[]
   legendColumns?: number
   amountFormatter?: (value: number) => string
+  size?: number
+  cols?: number
 }>()
 
 const activeLabel = shallowRef<string | null>(null)
@@ -22,12 +24,14 @@ const formatAmount = (value: number) =>
   props.amountFormatter ? props.amountFormatter(value) : value.toFixed(2)
 
 const legendCols = computed(() => props.legendColumns ?? 2)
+const gridSize = computed(() => (props.size ? `${props.size}px` : '100%'))
+const gridCols = computed(() => props.cols ?? 10)
 </script>
 
 <template>
   <div class="waffle-grid-wrap">
     <div class="waffle-grid" :style="{ '--legend-cols': legendCols }">
-      <div class="grid">
+      <div class="grid" :style="{ '--grid-size': gridSize, '--grid-cols': gridCols }">
         <div
           v-for="(tile, idx) in tiles"
           :key="idx"
@@ -67,13 +71,17 @@ const legendCols = computed(() => props.legendColumns ?? 2)
 .grid {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
+  width: var(--grid-size, 100%);
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  grid-template-columns: repeat(var(--grid-cols, 10), minmax(0, 1fr));
+  grid-auto-rows: 1fr;
   gap: 4px;
 }
 
 .grid-tile {
   width: 100%;
-  padding-bottom: 100%;
+  height: 100%;
   border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface) 30%, transparent);

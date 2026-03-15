@@ -555,7 +555,7 @@ const calendarEvents = computed<CalendarEvent[]>(() =>
   }))
 )
 
-const todayKey = new Date().toISOString().slice(0, 10)
+const todayKey = toLocalDateKey(new Date())
 const getItemRange = (item: UpcomingItem) => {
   const startDate = (item.startAt || item.date).slice(0, 10)
   const endDate = (item.endAt || item.startAt || item.date).slice(0, 10)
