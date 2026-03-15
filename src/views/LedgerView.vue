@@ -790,24 +790,29 @@ onMounted(async () => {
   inset: 0;
   display: grid;
   place-items: center;
-  gap: 4px;
-  font-size: 18px;
+  gap: 6px;
+  font-size: 20px;
   font-weight: 600;
-  color: color-mix(in srgb, var(--text) 55%, transparent);
-  background: color-mix(in srgb, var(--surface) 40%, transparent);
+  color: color-mix(in srgb, var(--text) 85%, transparent);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
   border-radius: 8px;
   pointer-events: auto;
   text-align: center;
   z-index: 1;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
 }
 
 .grid-overlay .overlay-name {
-  font-size: 14px;
-  letter-spacing: 0.5px;
+  font-size: 16px;
+  letter-spacing: 0.6px;
 }
 
 .grid-overlay .overlay-percent {
-  font-size: 22px;
+  font-size: 26px;
+}
+
+:global([data-theme='dark']) .ledger-chart .grid-tile {
+  filter: brightness(1.2) saturate(1.1);
 }
 
 .chart-grid {
@@ -821,7 +826,8 @@ onMounted(async () => {
   padding-bottom: 100%;
   border-radius: 4px;
   background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface) 30%, transparent);
 }
 
 .chart-legend {
