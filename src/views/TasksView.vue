@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { Icon, addCollection } from '@iconify/vue'
 import mdi from '@iconify-json/mdi/icons.json'
 import AppHeader from '../components/AppHeader.vue'
@@ -19,6 +19,7 @@ type Task = {
   rangeLabel: string
   dueDate: string
   done: boolean
+  status?: number
   icon: string
 }
 
@@ -26,6 +27,12 @@ const categories = ['家庭', '工作', '健康', '学习']
 const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
 
 const pad = (value: number) => String(value).padStart(2, '0')
+const toLocalDateKey = (date = new Date()) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
 const toDateTimeLocal = (value?: string) => {
   if (!value) return ''
   const normalized = value.replace('T', ' ').trim()
@@ -70,11 +77,14 @@ const buildDefaultRange = () => {
 }
 
 const tasks = ref<Task[]>([])
+const now = shallowRef(new Date())
+const todayKey = computed(() => toLocalDateKey(now.value))
+let todayTimer: ReturnType<typeof setInterval> | null = null
 const loading = shallowRef(false)
 const error = shallowRef('')
 
 const query = ref('')
-const statusFilter = ref<'all' | 'todo' | 'done'>('all')
+const statusFilter = ref<'all' | 'todo' | 'done' | 'overdue'>('all')
 const priorityFilter = ref<'all' | Task['priority']>('all')
 const modalOpen = ref(false)
 const editingId = ref<string | number | null>(null)
@@ -96,30 +106,77 @@ const form = ref<{
   icon: 'mdi:checkbox-marked-circle-outline'
 })
 
-const filteredTasks = computed(() => {
-  return tasks.value.filter((task) => {
+const getTaskRange = (task: Task) => {
+  const startDate = (task.startAt || task.dueDate || '').slice(0, 10)
+  const endDate = (task.endAt || task.startAt || task.dueDate || '').slice(0, 10)
+  return { startDate, endDate }
+}
+
+const resolveStatus = (task: Task) => {
+  if (task.status !== undefined) return task.status
+  if (task.done) return 1
+  const { endDate } = getTaskRange(task)
+  if (endDate && endDate < todayKey.value) return 2
+  return 0
+}
+
+const todayTasks = computed(() =>
+  tasks.value.filter((task) => {
+    const { startDate, endDate } = getTaskRange(task)
+    if (!startDate || !endDate) return false
+    if (startDate > todayKey.value || endDate < todayKey.value) return false
+    return resolveStatus(task) !== 2
+  })
+)
+
+const overdueTasks = computed(() => tasks.value.filter((t) => resolveStatus(t) === 2))
+
+const filteredTodayTasks = computed(() => {
+  if (statusFilter.value === 'overdue') return []
+  return todayTasks.value.filter((task) => {
     const hitQuery = task.title.includes(query.value.trim())
+    const status = resolveStatus(task)
     const hitStatus =
       statusFilter.value === 'all' ||
-      (statusFilter.value === 'done' ? task.done : !task.done)
+      (statusFilter.value === 'done' ? status === 1 : status === 0)
     const hitPriority =
       priorityFilter.value === 'all' || task.priority === priorityFilter.value
     return hitQuery && hitStatus && hitPriority
   })
 })
 
-const completed = computed(() => tasks.value.filter((t) => t.done).length)
-const completion = computed(() =>
-  tasks.value.length ? Math.round((completed.value / tasks.value.length) * 100) : 0
-)
-const overdue = computed(() => {
-  const today = new Date().toISOString().slice(0, 10)
-  return tasks.value.filter((t) => {
-    if (t.done) return false
-    const date = t.endAt ? t.endAt.slice(0, 10) : t.dueDate
-    return !!date && date < today
-  }).length
+const filteredOverdueTasks = computed(() => {
+  if (!(statusFilter.value === 'all' || statusFilter.value === 'overdue')) return []
+  return overdueTasks.value.filter((task) => {
+    const hitQuery = task.title.includes(query.value.trim())
+    const hitPriority =
+      priorityFilter.value === 'all' || task.priority === priorityFilter.value
+    return hitQuery && hitPriority
+  })
 })
+
+const completed = computed(() => todayTasks.value.filter((t) => resolveStatus(t) === 1).length)
+const inProgress = computed(() => todayTasks.value.filter((t) => resolveStatus(t) === 0).length)
+const completion = computed(() =>
+  todayTasks.value.length
+    ? Math.round((completed.value / todayTasks.value.length) * 100)
+    : 0
+)
+const overdue = computed(() => overdueTasks.value.length)
+
+const getStatusLabel = (task: Task) => {
+  const status = resolveStatus(task)
+  if (status === 1) return '已完成'
+  if (status === 2) return '逾期'
+  return '进行中'
+}
+
+const getStatusClass = (task: Task) => {
+  const status = resolveStatus(task)
+  if (status === 1) return 'done'
+  if (status === 2) return 'overdue'
+  return ''
+}
 
 const openCreate = () => {
   editingId.value = null
@@ -167,6 +224,7 @@ const fetchTasks = async () => {
         dueDate,
         rangeLabel: buildRangeLabel(startAt, endAt, dueDate),
         done: !!item.done,
+        status: typeof item.status === 'number' ? item.status : undefined,
         icon: item.icon || 'mdi:checkbox-marked-circle-outline'
       }
     })
@@ -243,7 +301,19 @@ const removeTask = async (id: string | number, evt?: MouseEvent) => {
   }
 }
 
-onMounted(fetchTasks)
+onMounted(() => {
+  todayTimer = window.setInterval(() => {
+    now.value = new Date()
+  }, 60 * 1000)
+  fetchTasks()
+})
+
+onUnmounted(() => {
+  if (todayTimer) {
+    clearInterval(todayTimer)
+    todayTimer = null
+  }
+})
 </script>
 
 <template>
@@ -255,7 +325,7 @@ onMounted(fetchTasks)
         <div class="task-board-head">
           <div>
             <h2>任务管理</h2>
-            <p class="muted">共 {{ tasks.length }} 项 · 已完成 {{ completed }} · 进行中 {{ tasks.length - completed }}</p>
+            <p class="muted">今日 {{ todayTasks.length }} 项 · 已完成 {{ completed }} · 进行中 {{ inProgress }}</p>
           </div>
           <button class="primary task-pill" @click="openCreate">新建任务</button>
         </div>
@@ -270,6 +340,7 @@ onMounted(fetchTasks)
               <option value="all">全部</option>
               <option value="todo">待办</option>
               <option value="done">已完成</option>
+              <option value="overdue">逾期</option>
             </select>
             <select v-model="priorityFilter">
               <option value="all">优先级</option>
@@ -282,7 +353,7 @@ onMounted(fetchTasks)
         </div>
 
         <div class="stat-grid compact">
-          <div class="stat-card"><span>总任务</span><strong>{{ tasks.length }}</strong></div>
+          <div class="stat-card"><span>今日总数</span><strong>{{ todayTasks.length }}</strong></div>
           <div class="stat-card"><span>已完成</span><strong>{{ completed }}</strong></div>
           <div class="stat-card"><span>完成度</span><strong>{{ completion }}%</strong></div>
           <div class="stat-card"><span>逾期</span><strong>{{ overdue }}</strong></div>
@@ -290,30 +361,63 @@ onMounted(fetchTasks)
 
         <div v-if="loading" class="empty-state">加载中…</div>
         <div v-else-if="error" class="empty-state">{{ error }}</div>
-        <div v-else-if="!filteredTasks.length" class="empty-state">暂无任务，点击右上角新建</div>
+        <div v-else-if="!filteredTodayTasks.length && !filteredOverdueTasks.length" class="empty-state">
+          暂无任务，点击右上角新建
+        </div>
 
-        <ul v-else class="task-list">
-          <li v-for="task in filteredTasks" :key="task.id" class="task-item">
-            <div class="task-icon" @click="toggleDone(task)">
-              <Icon :icon="task.icon" />
-            </div>
-            <div class="task-body">
-              <div class="task-title" :class="task.done && 'done'">{{ task.title }}</div>
-              <div class="task-meta">
-                <span class="tag">{{ task.category }}</span>
-                <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
-                <span class="tag">{{ task.rangeLabel }}</span>
-              </div>
-            </div>
-            <div class="task-actions">
-              <span class="task-status task-pill" :class="task.done && 'done'">
-                {{ task.done ? '已完成' : '进行中' }}
-              </span>
-              <button class="ghost task-pill" @click="openEdit(task)">编辑</button>
-              <button class="ghost task-pill danger" @click="removeTask(task.id, $event)">删除</button>
-            </div>
-          </li>
-        </ul>
+        <div v-else class="task-section">
+          <div v-if="filteredTodayTasks.length" class="task-section-block">
+            <div class="task-section-title">今日任务</div>
+            <ul class="task-list">
+              <li v-for="task in filteredTodayTasks" :key="task.id" class="task-item">
+                <div class="task-icon" @click="toggleDone(task)">
+                  <Icon :icon="task.icon" />
+                </div>
+                <div class="task-body">
+                  <div class="task-title" :class="task.done && 'done'">{{ task.title }}</div>
+                  <div class="task-meta">
+                    <span class="tag">{{ task.category }}</span>
+                    <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
+                    <span class="tag">{{ task.rangeLabel }}</span>
+                  </div>
+                </div>
+                <div class="task-actions">
+                  <span class="task-status task-pill" :class="getStatusClass(task)">
+                    {{ getStatusLabel(task) }}
+                  </span>
+                  <button class="ghost task-pill" @click="openEdit(task)">编辑</button>
+                  <button class="ghost task-pill danger" @click="removeTask(task.id, $event)">删除</button>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="filteredOverdueTasks.length" class="task-section-divider"></div>
+
+          <div v-if="filteredOverdueTasks.length" class="task-section-block overdue">
+            <div class="task-section-title overdue">逾期任务</div>
+            <ul class="task-list">
+              <li v-for="task in filteredOverdueTasks" :key="task.id" class="task-item overdue">
+                <div class="task-icon" @click="toggleDone(task)">
+                  <Icon :icon="task.icon" />
+                </div>
+                <div class="task-body">
+                  <div class="task-title">{{ task.title }}</div>
+                  <div class="task-meta">
+                    <span class="tag">{{ task.category }}</span>
+                    <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
+                    <span class="tag">{{ task.rangeLabel }}</span>
+                  </div>
+                </div>
+                <div class="task-actions">
+                  <span class="task-status task-pill overdue">逾期</span>
+                  <button class="ghost task-pill" @click="openEdit(task)">编辑</button>
+                  <button class="ghost task-pill danger" @click="removeTask(task.id, $event)">删除</button>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
       </section>
     </main>
 

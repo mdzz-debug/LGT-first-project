@@ -1998,6 +1998,38 @@ select {
   gap: 12px;
 }
 
+.task-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.task-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+.task-section-title.overdue {
+  color: var(--danger);
+}
+
+.task-section-divider {
+  height: 1px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.task-item.overdue {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.task-status.overdue {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
 .task-board {
   gap: 16px;
   position: relative;
@@ -2477,10 +2509,62 @@ select {
   }
 
 
-  .overview-grid,
+  .overview-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .stat-grid,
   .ledger-summary {
     grid-template-columns: 1fr;
+  }
+
+  .task-toolbar {
+    gap: 8px;
+  }
+
+  .task-filters {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .task-filters .search {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+  }
+
+  .task-filters .search input {
+    font-size: 12px;
+  }
+
+  .task-filters select {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .task-tools {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .task-tools .search {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+  }
+
+  .task-tools .search input {
+    font-size: 12px;
+  }
+
+  .task-tools select {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+    max-width: 96px;
   }
 
   .task-item,

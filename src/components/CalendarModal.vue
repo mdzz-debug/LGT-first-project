@@ -23,9 +23,16 @@ const emit = defineEmits<{
 const monthCursor = shallowRef(new Date())
 const selectedDate = shallowRef('')
 
+const toLocalDateKey = (date: Date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 const todayKey = (() => {
   const now = new Date()
-  return now.toISOString().slice(0, 10)
+  return toLocalDateKey(now)
 })()
 
 const year = computed(() => monthCursor.value.getFullYear())
@@ -43,7 +50,7 @@ const calendarCells = computed(() => {
   }
   for (let day = 1; day <= daysInMonth.value; day += 1) {
     const date = new Date(year.value, month.value, day)
-    const key = date.toISOString().slice(0, 10)
+    const key = toLocalDateKey(date)
     cells.push({ key, date: key, label: day })
   }
   return cells

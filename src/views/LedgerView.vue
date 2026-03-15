@@ -203,15 +203,18 @@ const familyWaffle = computed(() => {
   }))
 
   let allocated = counts.reduce((sum, item) => sum + item.count, 0)
-  if (allocated !== 100) {
+  if (allocated !== 100 && counts.length) {
     const diff = 100 - allocated
-    counts[0].count = Math.max(0, counts[0].count + diff)
+    const first = counts[0]
+    if (first) {
+      first.count = Math.max(0, first.count + diff)
+    }
   }
 
   const tiles: Array<{ category: string; color: string }> = []
   counts.forEach((item) => {
     for (let i = 0; i < item.count; i += 1) {
-      tiles.push({ category: item.category, color: item.color })
+      tiles.push({ category: item.category ?? '其他', color: item.color ?? chartPalette[0] ?? '#94a3b8' })
     }
   })
 
