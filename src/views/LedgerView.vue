@@ -226,6 +226,14 @@ const categoryGrid = computed(() => {
   return { tiles, legend }
 })
 
+const gridActive = shallowRef<string | null>(null)
+const gridActiveInfo = computed(() =>
+  categoryGrid.value.legend.find((item) => item.category === gridActive.value) || null
+)
+const toggleGridActive = (category: string) => {
+  gridActive.value = gridActive.value === category ? null : category
+}
+
 const familyWaffle = computed(() => {
   const rows = familyCategoryTotals.value.filter((r) => r.total > 0)
   if (!rows.length) return { tiles: [], legend: [] }
@@ -476,6 +484,11 @@ onMounted(async () => {
             <p class="muted">本月支出总额</p>
           </div>
           <div class="chart-grid-wrap">
+            <div v-if="gridActiveInfo" class="grid-tooltip" @click="gridActive = null">
+              <strong>{{ gridActiveInfo.category }}</strong>
+              <span>{{ gridActiveInfo.percent }}%</span>
+              <span>¥ {{ formatAmount(gridActiveInfo.total) }}</span>
+            </div>
             <div class="chart-grid">
               <div
                 v-for="(tile, idx) in categoryGrid.tiles"
@@ -483,14 +496,14 @@ onMounted(async () => {
                 class="grid-tile"
                 :style="{ background: tile.color }"
                 :title="tile.category"
+                @click="toggleGridActive(tile.category)"
               ></div>
             </div>
             <div class="chart-legend">
               <div v-for="item in categoryGrid.legend" :key="item.category" class="legend-row">
                 <span class="dot" :style="{ background: item.color }"></span>
                 <span class="legend-name">{{ item.category }}</span>
-                <span class="legend-value">{{ item.percent }}%</span>
-                <span class="legend-amount">¥ {{ formatAmount(item.total) }}</span>
+                                <span class="legend-amount">¥ {{ formatAmount(item.total) }}</span>
               </div>
             </div>
           </div>
@@ -764,6 +777,19 @@ onMounted(async () => {
   align-items: start;
 }
 
+
+.grid-tooltip {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  font-size: 12px;
+  color: var(--text);
+}
+
 .chart-grid {
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));
@@ -802,12 +828,8 @@ onMounted(async () => {
   color: var(--text);
 }
 
-.legend-value {
-  color: var(--text-muted);
-}
-
 .legend-amount {
-  grid-column: 2 / -1;
+  justify-self: end;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -867,8 +889,8 @@ onMounted(async () => {
   .chart-legend {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .legend-amount {
-    grid-column: auto;
+  .grid-tooltip {
+    justify-self: start;
   }
 }
 </style>
