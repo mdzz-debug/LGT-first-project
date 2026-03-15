@@ -267,4 +267,17 @@ const nextMonth = () => {
 .member-compare-legend .name {
   font-size: 14px;
 }
+
+@media (max-width: 720px) {
+  .member-compare-legend {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .member-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
 </style>

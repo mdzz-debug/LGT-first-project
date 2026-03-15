@@ -908,6 +908,19 @@ onMounted(async () => {
   font-size: 14px;
 }
 
+@media (max-width: 720px) {
+  .family-waffle-legend {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .family-waffle-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
 .legend-amount {
   justify-self: end;
   font-weight: 600;
