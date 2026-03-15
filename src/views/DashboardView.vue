@@ -103,8 +103,6 @@ const normalizeTaskIcon = (raw: string | undefined | null, category: string) => 
   return resolveCategoryIcon(category)
 }
 
-const getTaskIcon = (task: Task) => normalizeTaskIcon(task.icon, task.category)
-
 const mergeCategories = (next: string[]) => {
   const merged = new Set([...defaultCategories, ...next.filter(Boolean)])
   categories.value = Array.from(merged)
@@ -154,9 +152,6 @@ type UpcomingItem = {
 
 const upcoming = ref<UpcomingItem[]>([])
 
-const query = ref('')
-const statusFilter = ref<'all' | 'todo' | 'done'>('all')
-const priorityFilter = ref<'all' | Task['priority']>('all')
 const modalOpen = ref(false)
 const editingId = ref<string | number | null>(null)
 const calendarOpen = shallowRef(false)
@@ -348,22 +343,9 @@ const todayTasks = computed(() =>
 )
 
 const todayCompleted = computed(() => todayTasks.value.filter((t) => t.done).length)
-const todayInProgress = computed(() => todayTasks.value.filter((t) => !t.done).length)
 const todayCompletion = computed(() =>
   todayTasks.value.length ? Math.round((todayCompleted.value / todayTasks.value.length) * 100) : 0
 )
-
-const filteredTasks = computed(() => {
-  return todayTasks.value.filter((task) => {
-    const hitQuery = task.title.includes(query.value.trim())
-    const hitStatus =
-      statusFilter.value === 'all' ||
-      (statusFilter.value === 'done' ? task.done : !task.done)
-    const hitPriority =
-      priorityFilter.value === 'all' || task.priority === priorityFilter.value
-    return hitQuery && hitStatus && hitPriority
-  })
-})
 
 const overview = ref({
   completionRate: 0,
@@ -376,19 +358,6 @@ const completed = computed(() => tasks.value.filter((t) => t.done).length)
 const focusMinutes = computed(() =>
   tasks.value.length ? completed.value * 25 : overview.value.focusMinutes
 )
-
-const toggleDone = async (task: Task) => {
-  task.done = !task.done
-  try {
-    await apiFetch(`/tasks/${task.id}`, {
-      method: 'PATCH',
-      body: { done: task.done }
-    })
-    await fetchOverview()
-  } catch {
-    pushToast('任务状态更新失败', 'error')
-  }
-}
 
 
 
@@ -505,18 +474,6 @@ const fetchUpcoming = async () => {
   }
 }
 
-const openEdit = (task: Task) => {
-  editingId.value = task.id
-  form.value = {
-    title: task.title,
-    category: task.category,
-    priority: task.priority,
-    due: task.due,
-    icon: task.icon
-  }
-  modalOpen.value = true
-}
-
 const saveTask = async () => {
   if (!form.value.title.trim()) return
   try {
@@ -551,16 +508,6 @@ const saveTask = async () => {
     // ignore
   }
   modalOpen.value = false
-}
-
-const removeTask = async (id: string | number) => {
-  try {
-    await apiFetch(`/tasks/${id}`, { method: 'DELETE' })
-    await fetchTasks()
-    if (form.value.category) mergeCategories([form.value.category])
-  } catch {
-    // ignore
-  }
 }
 
 const goWeeklyReport = () => {
@@ -718,57 +665,6 @@ onUnmounted(() => {
             </div>
           </div>
         </section>
-
-        <section class="panel glass task-board">
-          <div class="task-board-head">
-            <div>
-              <h3>今日任务</h3>
-              <p class="muted">共 {{ todayTasks.length }} 项 · 已完成 {{ todayCompleted }} · 进行中 {{ todayInProgress }}</p>
-            </div>
-            <button class="primary task-pill" @click="openCreate">新建任务</button>
-          </div>
-
-          <div class="task-toolbar">
-            <div class="task-filters">
-              <div class="search">
-                <Icon icon="mdi:magnify" />
-                <input v-model="query" placeholder="搜索任务" />
-              </div>
-              <select v-model="statusFilter">
-                <option value="all">全部</option>
-                <option value="todo">待办</option>
-                <option value="done">已完成</option>
-              </select>
-              <select v-model="priorityFilter">
-                <option value="all">优先级</option>
-                <option v-for="item in priorities" :key="item" :value="item">
-                  {{ item }}
-                </option>
-              </select>
-            </div>
-
-          </div>
-
-          <ul class="task-list">
-            <li v-for="task in filteredTasks" :key="task.id" class="task-item">
-              <div class="task-icon" @click="toggleDone(task)">
-                <Icon :icon="getTaskIcon(task)" />
-              </div>
-              <div class="task-body">
-                <div class="task-title" :class="task.done && 'done'">{{ task.title }}</div>
-                <div class="task-meta">
-                  <span class="tag">{{ task.category }}</span>
-                  <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
-                  <span class="tag">{{ task.due }}</span>
-                </div>
-              </div>
-              <div class="task-actions">
-                <button class="ghost task-pill" @click="openEdit(task)">编辑</button>
-                <button class="ghost task-pill danger" @click="removeTask(task.id)">删除</button>
-              </div>
-            </li>
-          </ul>
-        </section>
       </div>
 
       <aside class="side">
@@ -795,21 +691,13 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section class="panel glass focus">
-          <div>
-            <div class="focus-title">
-              <Icon icon="mdi:timer-sand" />
-              今日专注
-            </div>
-            <p class="muted">建议再完成 1 轮 25 分钟。</p>
-          </div>
-          <button class="primary" @click="openPomodoro">开始番茄</button>
-        </section>
-
         <section class="panel glass">
           <div class="section-title">
             <h3>待办安排</h3>
-            <button class="ghost" @click="openCalendar">日历</button>
+            <div class="section-actions">
+              <button class="ghost" @click="openCalendar">日历</button>
+              <button class="primary task-pill" @click="openCreate">新建任务</button>
+            </div>
           </div>
           <div class="upcoming-list">
             <div v-if="!todayItems.length" class="empty-state">暂无安排</div>
@@ -855,6 +743,19 @@ onUnmounted(() => {
             </template>
           </div>
         </section>
+
+        <section class="panel glass focus">
+          <div>
+            <div class="focus-title">
+              <Icon icon="mdi:timer-sand" />
+              今日专注
+            </div>
+            <p class="muted">建议再完成 1 轮 25 分钟。</p>
+          </div>
+          <button class="primary" @click="openPomodoro">开始番茄</button>
+        </section>
+
+        
       </aside>
     </main>
 
