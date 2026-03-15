@@ -765,7 +765,7 @@ onMounted(async () => {
 
 .legend-name {
   color: var(--text);
-  font-size: 20px;
+  font-size: 14px;
 }
 
 .family-waffle {
