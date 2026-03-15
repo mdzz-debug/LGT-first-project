@@ -1022,7 +1022,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3);
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
@@ -1049,7 +1049,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 12px;
   flex: none;
-  margin-top: 24px;
+  margin-top: 12px;
   align-items: center;
 }
 
@@ -1064,6 +1064,12 @@ onUnmounted(() => {
   border: 1px solid transparent;
 }
 
+
+.nav-item .iconify {
+  width: 22px;
+  height: 22px;
+}
+
 .nav-item.active {
   background: color-mix(in srgb, var(--primary) 18%, transparent);
   color: var(--text);
@@ -1072,7 +1078,7 @@ onUnmounted(() => {
 }
 
 .nav-footer {
-  margin-top: 32px;
+  margin-top: auto;
 }
 
 .dashboard-content {
@@ -1198,7 +1204,7 @@ onUnmounted(() => {
 .flow-chart {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 14px;
+  gap: 16px;
   height: 180px;
   align-items: end;
 }
@@ -1220,7 +1226,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 180px 1fr;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 .donut {
