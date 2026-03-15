@@ -191,6 +191,41 @@ const categoryChart = computed(() => {
     }))
 })
 
+const categoryGrid = computed(() => {
+  const items = categoryChart.value
+  if (!items.length) return { tiles: [], legend: [] }
+  const total = items.reduce((sum, item) => sum + item.total, 0)
+  if (!total) return { tiles: [], legend: [] }
+
+  const legend = items.map((item) => ({
+    ...item,
+    percent: Math.round((item.total / total) * 100)
+  }))
+
+  const counts = legend.map((item) => ({
+    ...item,
+    count: Math.round((item.total / total) * 100)
+  }))
+
+  let allocated = counts.reduce((sum, item) => sum + item.count, 0)
+  if (allocated !== 100 && counts.length) {
+    const diff = 100 - allocated
+    const first = counts[0]
+    if (first) {
+      first.count = Math.max(0, first.count + diff)
+    }
+  }
+
+  const tiles: Array<{ category: string; color: string }> = []
+  counts.forEach((item) => {
+    for (let i = 0; i < item.count; i += 1) {
+      tiles.push({ category: item.category, color: item.color || '#cbd5f5' })
+    }
+  })
+
+  return { tiles, legend }
+})
+
 const familyWaffle = computed(() => {
   const rows = familyCategoryTotals.value.filter((r) => r.total > 0)
   if (!rows.length) return { tiles: [], legend: [] }
@@ -434,22 +469,29 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-if="categoryChart.length" class="ledger-chart">
+        <div v-if="categoryGrid.legend.length" class="ledger-chart grid-chart">
           <div class="chart-summary">
             <span class="kicker">支出分布</span>
             <h3>¥ {{ formatAmount(totalExpense) }}</h3>
             <p class="muted">本月支出总额</p>
           </div>
-          <div class="chart-bars">
-            <div v-for="item in categoryChart" :key="item.category" class="chart-row">
-              <div class="chart-label">
+          <div class="chart-grid-wrap">
+            <div class="chart-grid">
+              <div
+                v-for="(tile, idx) in categoryGrid.tiles"
+                :key="idx"
+                class="grid-tile"
+                :style="{ background: tile.color }"
+                :title="tile.category"
+              ></div>
+            </div>
+            <div class="chart-legend">
+              <div v-for="item in categoryGrid.legend" :key="item.category" class="legend-row">
                 <span class="dot" :style="{ background: item.color }"></span>
-                <span>{{ item.category }}</span>
+                <span class="legend-name">{{ item.category }}</span>
+                <span class="legend-value">{{ item.percent }}%</span>
+                <span class="legend-amount">¥ {{ formatAmount(item.total) }}</span>
               </div>
-              <div class="chart-bar">
-                <div class="chart-fill" :style="{ width: item.percent + '%', background: item.color }"></div>
-              </div>
-              <div class="chart-value">¥ {{ formatAmount(item.total) }}</div>
             </div>
           </div>
         </div>
@@ -694,9 +736,9 @@ onMounted(async () => {
 
 .ledger-chart {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
   gap: 16px;
-  align-items: center;
+  align-items: start;
   padding: var(--card-pad);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -715,47 +757,60 @@ onMounted(async () => {
   font-variant-numeric: tabular-nums;
 }
 
-.chart-bars {
+.chart-grid-wrap {
   display: grid;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 14px;
+  align-items: start;
 }
 
-.chart-row {
+.chart-grid {
   display: grid;
-  grid-template-columns: minmax(90px, 120px) 1fr auto;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 4px;
 }
 
-.chart-label {
-  display: inline-flex;
-  align-items: center;
+.grid-tile {
+  width: 100%;
+  padding-bottom: 100%;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.chart-legend {
+  display: grid;
   gap: 8px;
+}
+
+.legend-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
   color: var(--text);
 }
 
-.chart-label .dot {
+.legend-row .dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
 }
 
-.chart-bar {
-  height: 8px;
-  background: color-mix(in srgb, var(--border) 50%, transparent);
-  border-radius: 999px;
-  overflow: hidden;
+.legend-name {
+  color: var(--text);
 }
 
-.chart-fill {
-  height: 100%;
-  border-radius: 999px;
+.legend-value {
+  color: var(--text-muted);
 }
 
-.chart-value {
+.legend-amount {
+  grid-column: 2 / -1;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .rose-empty {
@@ -803,12 +858,17 @@ onMounted(async () => {
     width: 100%;
     justify-content: space-between;
   }
-  .chart-row {
+  .ledger-chart {
     grid-template-columns: 1fr;
-    gap: 6px;
   }
-  .chart-value {
-    justify-self: end;
+  .chart-grid-wrap {
+    grid-template-columns: 1fr;
+  }
+  .chart-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .legend-amount {
+    grid-column: auto;
   }
 }
 </style>
