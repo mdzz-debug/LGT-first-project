@@ -525,9 +525,9 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <div class="dashboard-grid">
-        <section class="dashboard-main">
-          <div class="panel revenue-flow">
+      <div class="dashboard-rows">
+        <div class="dashboard-row">
+          <div class="panel revenue-flow span-12">
             <div class="panel-head">
               <div>
                 <h3>收支趋势</h3>
@@ -538,8 +538,10 @@ onUnmounted(() => {
               <div ref="flowChartRef" class="flow-echart"></div>
             </div>
           </div>
+        </div>
 
-          <div class="panel available">
+        <div class="dashboard-row">
+          <div class="panel available span-6">
             <div class="panel-head">
               <h3>可用额度</h3>
             </div>
@@ -554,33 +556,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="panel tasks">
-            <div class="panel-head">
-              <div>
-                <h3>今日任务</h3>
-                <p class="muted">共 {{ todayTasks.length }} 项 · 已完成 {{ completed }} · 进行中 {{ inProgress }}</p>
-              </div>
-            </div>
-            <ul class="task-list">
-              <li v-for="task in todayTasks.slice(0, 5)" :key="task.id" class="task-item">
-                <div class="task-icon">
-                  <Icon :icon="task.icon" />
-                </div>
-                <div class="task-body">
-                  <div class="task-title" :class="task.done && 'done'">{{ task.title }}</div>
-                  <div class="task-meta">
-                    <span class="tag">{{ task.category }}</span>
-                    <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
-                    <span class="tag">{{ task.due }}</span>
-                  </div>
-                </div>
-              </li>
-            </ul>
-          </div>
-        </section>
-
-        <aside class="dashboard-right">
-          <div class="panel card-stack">
+          <div class="panel card-stack span-6">
             <div class="panel-head">
               <h3>资产概览</h3>
             </div>
@@ -602,8 +578,10 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
+        </div>
 
-          <div class="panel summary">
+        <div class="dashboard-row">
+          <div class="panel summary span-12">
             <div class="panel-head">
               <div>
                 <h3>收支摘要</h3>
@@ -642,8 +620,34 @@ onUnmounted(() => {
               </ul>
             </div>
           </div>
+        </div>
 
-          <div class="panel schedule">
+        <div class="dashboard-row">
+          <div class="panel tasks span-6">
+            <div class="panel-head">
+              <div>
+                <h3>今日任务</h3>
+                <p class="muted">共 {{ todayTasks.length }} 项 · 已完成 {{ completed }} · 进行中 {{ inProgress }}</p>
+              </div>
+            </div>
+            <ul class="task-list">
+              <li v-for="task in todayTasks.slice(0, 5)" :key="task.id" class="task-item">
+                <div class="task-icon">
+                  <Icon :icon="task.icon" />
+                </div>
+                <div class="task-body">
+                  <div class="task-title" :class="task.done && 'done'">{{ task.title }}</div>
+                  <div class="task-meta">
+                    <span class="tag">{{ task.category }}</span>
+                    <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
+                    <span class="tag">{{ task.due }}</span>
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="panel schedule span-6">
             <div class="panel-head">
               <h3>日程</h3>
             </div>
@@ -664,7 +668,7 @@ onUnmounted(() => {
             </div>
             <div v-else class="muted">暂无安排</div>
           </div>
-        </aside>
+        </div>
       </div>
     </div>
   </div>
@@ -756,14 +760,23 @@ onUnmounted(() => {
   margin-left: 128px;
 }
 
-.dashboard-main {
+.dashboard-rows {
   display: grid;
+  gap: 20px;
+}
+
+.dashboard-row {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 18px;
 }
 
-.dashboard-right {
-  display: grid;
-  gap: 18px;
+.span-12 {
+  grid-column: span 12;
+}
+
+.span-6 {
+  grid-column: span 6;
 }
 
 .dashboard-topbar {
@@ -835,11 +848,6 @@ onUnmounted(() => {
   color: var(--text);
 }
 
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  gap: 28px;
-}
 
 .panel {
   background: var(--surface);
@@ -883,14 +891,15 @@ onUnmounted(() => {
 
 .donut-chart {
   position: relative;
-  width: 100%;
+  width: 220px;
   height: 220px;
   display: grid;
   place-items: center;
+  margin: 0 auto;
 }
 
 .donut-echart {
-  width: 100%;
+  width: 220px;
   height: 220px;
 }
 
@@ -1017,8 +1026,14 @@ onUnmounted(() => {
     flex-direction: row;
     flex: none;
   }
-  .dashboard-grid {
-    grid-template-columns: 1fr;
+  .dashboard-row {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .span-6 {
+    grid-column: span 12;
+  }
+  .span-12 {
+    grid-column: span 12;
   }
   .available-body {
     grid-template-columns: 1fr;
