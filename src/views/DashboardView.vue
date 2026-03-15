@@ -1022,7 +1022,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3);
   border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
@@ -1048,8 +1048,9 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  flex: 1;
-  justify-content: center;
+  flex: none;
+  margin-top: 24px;
+  align-items: center;
 }
 
 .nav-item {
@@ -1071,7 +1072,7 @@ onUnmounted(() => {
 }
 
 .nav-footer {
-  margin-top: auto;
+  margin-top: 32px;
 }
 
 .dashboard-content {
@@ -1219,7 +1220,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 180px 1fr;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
 }
 
 .donut {
