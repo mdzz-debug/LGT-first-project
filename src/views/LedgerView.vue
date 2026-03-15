@@ -270,6 +270,14 @@ const familyWaffle = computed(() => {
   return { tiles, legend }
 })
 
+const familyGridActive = shallowRef<string | null>(null)
+const familyGridActiveInfo = computed(() =>
+  familyWaffle.value.legend.find((item) => item.category === familyGridActive.value) || null
+)
+const toggleFamilyGridActive = (category: string) => {
+  familyGridActive.value = familyGridActive.value === category ? null : category
+}
+
 const fetchRecords = async () => {
   loading.value = true
   error.value = ''
@@ -659,18 +667,22 @@ onMounted(async () => {
                         class="waffle-tile"
                         :style="{ background: tile.color }"
                         :title="tile.category"
+                        @click="toggleFamilyGridActive(tile.category)"
                       ></div>
+                      <div v-if="familyGridActiveInfo" class="waffle-overlay" @click="familyGridActive = null">
+                        <span class="overlay-name">{{ familyGridActiveInfo.category }}</span>
+                        <span class="overlay-percent">{{ familyGridActiveInfo.percent }}%</span>
+                      </div>
                     </div>
                   </div>
                   <div class="family-waffle-total">支出总额 ¥ {{ formatAmount(totalExpense) }}</div>
                 </div>
 
                 <div class="family-waffle-legend">
-                  <div v-for="item in familyWaffle.legend" :key="item.category" class="family-waffle-item">
+                  <div v-for="item in familyWaffle.legend" :key="item.category" class="family-waffle-item" @click="toggleFamilyGridActive(item.category)">
                     <span class="dot" :style="{ background: item.color }"></span>
                     <div class="legend-left">
                       <span class="name">{{ item.category }}</span>
-                      <span class="value">{{ item.percent }}%</span>
                     </div>
                     <span class="amount">¥ {{ formatAmount(item.total) }}</span>
                   </div>
@@ -852,6 +864,42 @@ onMounted(async () => {
 
 .legend-name {
   color: var(--text);
+  font-size: 20px;
+}
+
+.family-waffle {
+  position: relative;
+}
+
+.family-waffle .waffle-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--text) 85%, transparent);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border-radius: 8px;
+  text-align: center;
+  z-index: 1;
+}
+
+.family-waffle .waffle-overlay .overlay-name {
+  font-size: 16px;
+}
+
+.family-waffle .waffle-overlay .overlay-percent {
+  font-size: 26px;
+}
+
+.family-waffle-item {
+  cursor: pointer;
+}
+
+.family-waffle-legend .name {
+  font-size: 20px;
 }
 
 .legend-amount {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, shallowRef } from 'vue'
 
 type Member = {
   id: string | number
@@ -157,6 +157,14 @@ const memberWaffle = computed(() => {
   return { tiles, legend }
 })
 
+const waffleActive = shallowRef<string | null>(null)
+const waffleActiveInfo = computed(() =>
+  memberWaffle.value.legend.find((item) => item.name === waffleActive.value) || null
+)
+const toggleWaffleActive = (name: string) => {
+  waffleActive.value = waffleActive.value === name ? null : name
+}
+
 const prevMonth = () => {
   const { year, month } = parseMonth(monthModel.value)
   const nextMonth = month - 1 <= 0 ? 12 : month - 1
@@ -198,14 +206,18 @@ const nextMonth = () => {
           class="member-waffle-tile"
           :style="{ background: tile.color }"
           :title="tile.name"
+          @click="toggleWaffleActive(tile.name)"
         ></div>
+        <div v-if="waffleActiveInfo" class="waffle-overlay" @click="waffleActive = null">
+          <span class="overlay-name">{{ waffleActiveInfo.name }}</span>
+          <span class="overlay-percent">{{ waffleActiveInfo.percent }}%</span>
+        </div>
       </div>
       <div class="member-compare-legend">
-        <div v-for="item in memberWaffle.legend" :key="item.id" class="member-legend-item">
+        <div v-for="item in memberWaffle.legend" :key="item.id" class="member-legend-item" @click="toggleWaffleActive(item.name)">
           <span class="dot" :style="{ background: item.color }"></span>
           <div class="legend-left">
             <span class="name">{{ item.name }}</span>
-            <span class="value">{{ item.percent }}%</span>
           </div>
           <span class="amount">¥ {{ item.total }}</span>
         </div>
@@ -213,3 +225,40 @@ const nextMonth = () => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.member-compare-waffle-grid {
+  position: relative;
+}
+
+.member-waffle-tile {
+  cursor: pointer;
+}
+
+.waffle-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--text) 85%, transparent);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border-radius: 8px;
+  text-align: center;
+  z-index: 1;
+}
+
+.waffle-overlay .overlay-name {
+  font-size: 16px;
+}
+
+.waffle-overlay .overlay-percent {
+  font-size: 24px;
+}
+
+.member-compare-legend .name {
+  font-size: 20px;
+}
+</style>
