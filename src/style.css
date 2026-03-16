@@ -1143,13 +1143,6 @@ select {
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   display: grid;
   gap: 12px;
-  transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-}
-
-.family-category:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-glow);
-  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .family-category-head {
@@ -1210,7 +1203,7 @@ select {
 
 .family-category-body {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 1fr;
   gap: 16px;
   align-items: start;
   text-align: left;
@@ -1224,8 +1217,8 @@ select {
 
 .family-waffle-wrap {
   position: relative;
-  width: 220px;
-  height: 220px;
+  width: 100%;
+  height: auto;
   display: grid;
   place-items: center;
 }

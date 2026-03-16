@@ -73,6 +73,7 @@ const gridCols = computed(() => props.cols ?? 10)
   display: grid;
   width: var(--grid-size, 100%);
   max-width: 100%;
+  margin: 0 auto;
   aspect-ratio: 1 / 1;
   grid-template-columns: repeat(var(--grid-cols, 10), minmax(0, 1fr));
   grid-auto-rows: 1fr;
@@ -115,26 +116,35 @@ const gridCols = computed(() => props.cols ?? 10)
 .legend {
   display: grid;
   grid-template-columns: repeat(var(--legend-cols), minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
+  max-height: var(--grid-size, 180px);
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .legend-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 6px;
   align-items: center;
-  gap: 8px;
   cursor: pointer;
 }
 
 .legend-name {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--text);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .legend-amount {
-  margin-left: auto;
+  font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+  white-space: nowrap;
 }
 
 .dot {
@@ -150,9 +160,6 @@ const gridCols = computed(() => props.cols ?? 10)
 @media (max-width: 720px) {
   .waffle-grid {
     grid-template-columns: 1fr;
-  }
-  .legend {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

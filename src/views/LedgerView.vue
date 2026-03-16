@@ -582,6 +582,7 @@ onMounted(async () => {
           <div v-else class="family-tab-panel">
             <div class="family-category">
               <div class="family-category-head">{{ compareMonth }} · 家庭支出分类</div>
+              <div class="family-category-summary">支出总额 ¥ {{ formatAmount(totalExpense) }}</div>
               <div class="family-category-body">
                 <div class="family-waffle-stack">
                   <div class="family-waffle-wrap">
@@ -589,10 +590,9 @@ onMounted(async () => {
                       :tiles="familyWaffle.tiles"
                       :legend="familyWaffle.legend"
                       :amount-formatter="formatAmount"
-                      :size="200"
+                      :size="160"
                     />
                   </div>
-                  <div class="family-waffle-total">支出总额 ¥ {{ formatAmount(totalExpense) }}</div>
                 </div>
 
               </div>
@@ -613,6 +613,39 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.family-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.family-tabs .chip {
+  height: 26px;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.family-modal {
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.family-tab-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.family-category-summary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .ledger-stat-grid {

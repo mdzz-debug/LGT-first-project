@@ -162,7 +162,12 @@ const nextMonth = () => {
     <div class="member-compare-summary">家庭总{{ mode === 'expense' ? '支出' : '收入' }}：¥ {{ familyTotal }}</div>
 
     <div class="member-compare-grid">
-      <WaffleGrid :tiles="memberWaffle.tiles" :legend="memberWaffle.legend" :amount-formatter="formatAmount" :size="200" />
+      <WaffleGrid
+        :tiles="memberWaffle.tiles"
+        :legend="memberWaffle.legend"
+        :amount-formatter="formatAmount"
+        :size="160"
+      />
     </div>
   </section>
 </template>
