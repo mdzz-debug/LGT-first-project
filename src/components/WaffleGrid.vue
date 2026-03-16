@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, shallowRef } from 'vue'
+import { Icon, addCollection } from '@iconify/vue'
+import mdi from '@iconify-json/mdi/icons.json'
 import type { WaffleLegend, WaffleTile } from '../utils/waffle'
+
+addCollection(mdi)
 
 const props = defineProps<{
   tiles: WaffleTile[]
@@ -48,6 +52,9 @@ const gridCols = computed(() => props.cols ?? 10)
       <div class="legend">
         <div v-for="item in legend" :key="item.label" class="legend-row" @click="toggleActive(item.label)">
           <span class="dot" :style="{ background: item.color }"></span>
+          <span class="legend-icon">
+            <Icon :icon="item.icon || 'mdi:tag-outline'" :style="{ color: item.color }" />
+          </span>
           <span class="legend-name">{{ item.label }}</span>
           <span class="legend-amount">¥ {{ formatAmount(item.amount) }}</span>
         </div>
@@ -124,10 +131,19 @@ const gridCols = computed(() => props.cols ?? 10)
 
 .legend-row {
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto;
+  grid-template-columns: 10px 16px minmax(0, 1fr) auto;
   gap: 6px;
   align-items: center;
   cursor: pointer;
+}
+
+.legend-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
 }
 
 .legend-name {

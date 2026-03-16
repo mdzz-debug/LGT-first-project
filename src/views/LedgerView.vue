@@ -1,15 +1,34 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
+import { Icon, addCollection } from '@iconify/vue'
+import mdi from '@iconify-json/mdi/icons.json'
 import AppHeader from '../components/AppHeader.vue'
 import MemberSpendCompare from '../components/MemberSpendCompare.vue'
 import WaffleGrid from '../components/WaffleGrid.vue'
+import CategorySelect from '../components/ledger/CategorySelect.vue'
+import type { CategoryOption } from '../components/ledger/CategorySelect.vue'
 import { buildWaffle } from '../utils/waffle'
 import { apiFetch } from '../api/client'
 import { pushToast } from '../composables/useToast'
 import { useRecycleFly } from '../composables/useRecycleFly'
 
+addCollection(mdi)
+
 const defaultCategories = ['餐饮', '交通', '居家', '教育', '娱乐', '其他']
+const defaultCategoryIcons: Record<string, string> = {
+  餐饮: 'mdi:food',
+  交通: 'mdi:train-car',
+  居家: 'mdi:home',
+  教育: 'mdi:school',
+  娱乐: 'mdi:movie-open',
+  医疗: 'mdi:medical-bag',
+  购物: 'mdi:cart',
+  服饰: 'mdi:tshirt-crew',
+  美妆: 'mdi:lipstick',
+  其他: 'mdi:dots-horizontal'
+}
 const categories = ref<string[]>([...defaultCategories])
+const categoryIcons = ref<Record<string, string>>({ ...defaultCategoryIcons })
 const types = ['expense', 'income'] as const
 
 type LedgerType = (typeof types)[number]
@@ -19,6 +38,7 @@ type LedgerRecord = {
   type: LedgerType
   category: string
   categoryId?: string | number
+  categoryIcon?: string
   amount: number
   date: string
   note: string
@@ -58,6 +78,19 @@ const familySummary = ref<FamilySummary>({
 const query = ref('')
 const filterType = ref<'all' | 'expense' | 'income'>('all')
 const filterCategory = ref('all')
+
+const getCategoryIcon = (name: string) =>
+  categoryIcons.value[name] ?? defaultCategoryIcons[name] ?? 'mdi:tag-outline'
+
+const categorySelectOptions = computed<CategoryOption[]>(() =>
+  categories.value.map((name) => ({ value: name, label: name, icon: getCategoryIcon(name) }))
+)
+
+const filterCategoryOptions = computed<CategoryOption[]>(() => [
+  { value: 'all', label: '全部分类', icon: 'mdi:apps' },
+  ...categorySelectOptions.value
+])
+
 const toLocalDateKey = (date: Date) => {
   const offset = date.getTimezoneOffset() * 60 * 1000
   return new Date(date.getTime() - offset).toISOString().slice(0, 10)
@@ -184,7 +217,8 @@ const categoryChart = computed(() => {
     .map(([category, total], idx) => ({
       category,
       total,
-      color: chartPalette[idx % chartPalette.length]
+      color: chartPalette[idx % chartPalette.length],
+      icon: getCategoryIcon(category)
     }))
     .filter((item) => item.total > 0)
 
@@ -203,7 +237,8 @@ const categoryWaffle = computed(() =>
     categoryChart.value.map((item) => ({
       label: item.category,
       amount: item.total,
-      color: item.color ?? '#cbd5f5'
+      color: item.color ?? '#cbd5f5',
+      icon: item.icon
     }))
   )
 )
@@ -215,7 +250,8 @@ const familyWaffle = computed(() =>
       .map((row, idx) => ({
         label: row.category,
         amount: row.total,
-        color: chartPalette[idx % chartPalette.length] || '#cbd5f5'
+        color: chartPalette[idx % chartPalette.length] || '#cbd5f5',
+        icon: getCategoryIcon(row.category)
       }))
   )
 )
@@ -225,16 +261,27 @@ const fetchRecords = async () => {
   error.value = ''
   try {
     const data = await apiFetch<any[]>('/ledger/records')
-    records.value = data.map((item) => ({
-      id: item.id,
-      type: item.type,
-      category: item.category,
-      categoryId: item.category_id ?? item.categoryId ?? item.categoryID,
-      amount: Number(item.amount),
-      date: item.date,
-      note: item.note ?? '',
-      memberId: item.member_id ?? item.memberId ?? 'self'
-    }))
+    records.value = data.map((item) => {
+      const category = item.category
+      const categoryIcon =
+        item.category_icon ??
+        item.categoryIcon ??
+        categoryIcons.value[category] ??
+        defaultCategoryIcons[category] ??
+        undefined
+
+      return {
+        id: item.id,
+        type: item.type,
+        category,
+        categoryId: item.category_id ?? item.categoryId ?? item.categoryID,
+        categoryIcon,
+        amount: Number(item.amount),
+        date: item.date,
+        note: item.note ?? '',
+        memberId: item.member_id ?? item.memberId ?? 'self'
+      }
+    })
   } catch (err: any) {
     error.value = err?.message || '记账加载失败'
   } finally {
@@ -266,12 +313,24 @@ const fetchFamilySummary = async () => {
 const fetchCategories = async () => {
   try {
     const data = await apiFetch<any[]>('/ledger/categories')
+
     const base = [...defaultCategories]
+    const nextIcons: Record<string, string> = { ...defaultCategoryIcons }
+
     if (Array.isArray(data) && data.length) {
-      const names = data
-        .map((item) => item.name ?? item.category ?? item)
-        .filter((name: any) => typeof name === 'string' && name.trim())
-      const extra = names.filter((name: string) => !base.includes(name))
+      const names: string[] = []
+      data.forEach((item) => {
+        const name = (item?.name ?? item?.category ?? item) as any
+        if (typeof name === 'string' && name.trim()) {
+          names.push(name.trim())
+          const icon = (item?.icon ?? item?.category_icon ?? item?.categoryIcon) as any
+          if (typeof icon === 'string' && icon.trim()) {
+            nextIcons[name.trim()] = icon.trim()
+          }
+        }
+      })
+
+      const extra = names.filter((name) => !base.includes(name))
       const merged = [...base, ...extra]
       if (!merged.includes('其他')) merged.push('其他')
       categories.value = Array.from(new Set(merged))
@@ -279,9 +338,12 @@ const fetchCategories = async () => {
       if (!base.includes('其他')) base.push('其他')
       categories.value = base
     }
+
+    categoryIcons.value = nextIcons
   } catch {
     categories.value = [...defaultCategories]
     if (!categories.value.includes('其他')) categories.value.push('其他')
+    categoryIcons.value = { ...defaultCategoryIcons }
   }
 
   if (!categories.value.includes(form.value.category)) {
@@ -464,10 +526,7 @@ onMounted(async () => {
             <option value="expense">支出</option>
             <option value="income">收入</option>
           </select>
-          <select v-model="filterCategory">
-            <option value="all">全部分类</option>
-            <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
-          </select>
+          <CategorySelect v-model="filterCategory" :options="filterCategoryOptions" />
         </div>
 
         <div v-if="loading" class="empty-state">加载中…</div>
@@ -478,7 +537,13 @@ onMounted(async () => {
           <div v-for="item in filtered" :key="item.id" class="ledger-item">
             <div>
               <h4>{{ item.note }}</h4>
-              <p class="muted">{{ item.category }} · {{ item.date }}</p>
+              <p class="muted">
+                <span class="ledger-cat">
+                  <Icon class="ledger-cat-icon" :icon="item.categoryIcon || getCategoryIcon(item.category)" />
+                  <span>{{ item.category }}</span>
+                </span>
+                · {{ item.date }}
+              </p>
             </div>
             <div class="ledger-amount" :class="item.type">
               {{ item.type === 'income' ? '+' : '-' }}¥{{ item.amount }}
@@ -508,9 +573,7 @@ onMounted(async () => {
             </label>
             <label>
               <span>分类</span>
-              <select v-model="form.category">
-                <option v-for="cat in categories" :key="cat">{{ cat }}</option>
-              </select>
+              <CategorySelect v-model="form.category" :options="categorySelectOptions" />
             </label>
             <label>
               <span>金额</span>
@@ -613,6 +676,18 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.ledger-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ledger-cat-icon {
+  width: 14px;
+  height: 14px;
+  color: color-mix(in srgb, var(--text) 75%, transparent);
 }
 
 .family-tabs {

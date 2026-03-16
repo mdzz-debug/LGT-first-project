@@ -2,6 +2,7 @@ export type WaffleInput = {
   label: string
   amount: number
   color: string
+  icon?: string
 }
 
 export type WaffleLegend = WaffleInput & {
