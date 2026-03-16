@@ -14,7 +14,7 @@ import { useRecycleFly } from '../composables/useRecycleFly'
 
 addCollection(mdi)
 
-const defaultCategories = ['餐饮', '交通', '居家', '教育', '娱乐', '工资', '红包', '奖金', '报销', '退款', '收款', '其他']
+const defaultCategories = ['餐饮', '交通', '居家', '教育', '娱乐', '工资', '红包', '奖金', '报销', '退款', '收款', '上缴', '其他']
 const defaultCategoryIcons: Record<string, string> = {
   餐饮: 'mdi:food',
   交通: 'mdi:train-car',
@@ -31,6 +31,7 @@ const defaultCategoryIcons: Record<string, string> = {
   报销: 'mdi:file-check',
   退款: 'mdi:cash-refund',
   收款: 'mdi:cash-plus',
+  上缴: 'mdi:bank-transfer',
   其他: 'mdi:dots-horizontal'
 }
 const categories = ref<string[]>([...defaultCategories])
@@ -61,6 +62,9 @@ type LedgerRecord = {
   note: string
   memberId?: string | number
   allocations?: LedgerAllocation[]
+  recordKind?: string
+  sourceUserName?: string
+  sourceNote?: string
 }
 
 type FamilySummary = {
@@ -314,7 +318,10 @@ const fetchRecords = async () => {
         date: item.date,
         note: item.note ?? '',
         memberId: item.member_id ?? item.memberId ?? 'self',
-        allocations: Array.isArray(item.allocations) ? item.allocations : []
+        allocations: Array.isArray(item.allocations) ? item.allocations : [],
+        recordKind: item.record_kind ?? item.recordKind,
+        sourceUserName: item.source_user_name ?? item.sourceUserName,
+        sourceNote: item.source_note ?? item.sourceNote
       }
     })
   } catch (err: any) {
@@ -653,6 +660,9 @@ onMounted(async () => {
                 </span>
                 · {{ item.date }}
               </p>
+              <p v-if="item.recordKind === 'allocation_in' && item.sourceNote" class="muted alloc-source">
+                来源：{{ item.sourceNote }}
+              </p>
 
             </div>
             <div class="ledger-amount" :class="item.type">
@@ -667,8 +677,10 @@ onMounted(async () => {
               >
                 <Icon icon="mdi:account-group" />
               </button>
-              <button class="ghost task-pill" @click="openEdit(item)">编辑</button>
-              <button class="ghost task-pill danger" @click="removeRecord(item.id, $event)">删除</button>
+              <template v-if="item.recordKind !== 'allocation_in'">
+                <button class="ghost task-pill" @click="openEdit(item)">编辑</button>
+                <button class="ghost task-pill danger" @click="removeRecord(item.id, $event)">删除</button>
+              </template>
             </div>
           </div>
         </div>
@@ -875,6 +887,11 @@ onMounted(async () => {
   width: 14px;
   height: 14px;
   color: color-mix(in srgb, var(--text) 75%, transparent);
+}
+
+.alloc-source {
+  margin-top: 4px;
+  color: var(--text-muted);
 }
 
 .alloc-lines {
