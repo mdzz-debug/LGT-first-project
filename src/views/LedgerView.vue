@@ -14,7 +14,7 @@ import { useRecycleFly } from '../composables/useRecycleFly'
 
 addCollection(mdi)
 
-const defaultCategories = ['餐饮', '交通', '居家', '教育', '娱乐', '其他']
+const defaultCategories = ['餐饮', '交通', '居家', '教育', '娱乐', '工资', '红包', '奖金', '报销', '退款', '收款', '其他']
 const defaultCategoryIcons: Record<string, string> = {
   餐饮: 'mdi:food',
   交通: 'mdi:train-car',
@@ -25,6 +25,12 @@ const defaultCategoryIcons: Record<string, string> = {
   购物: 'mdi:cart',
   服饰: 'mdi:tshirt-crew',
   美妆: 'mdi:lipstick',
+  工资: 'mdi:briefcase',
+  红包: 'mdi:gift',
+  奖金: 'mdi:trophy',
+  报销: 'mdi:file-check',
+  退款: 'mdi:cash-refund',
+  收款: 'mdi:cash-plus',
   其他: 'mdi:dots-horizontal'
 }
 const categories = ref<string[]>([...defaultCategories])
@@ -32,6 +38,17 @@ const categoryIcons = ref<Record<string, string>>({ ...defaultCategoryIcons })
 const types = ['expense', 'income'] as const
 
 type LedgerType = (typeof types)[number]
+
+type LedgerAllocation = {
+  memberId?: string | number
+  memberName?: string
+  amount: number
+}
+
+type AllocationDraft = {
+  memberId: string
+  amount: number
+}
 
 type LedgerRecord = {
   id: string | number
@@ -43,6 +60,7 @@ type LedgerRecord = {
   date: string
   note: string
   memberId?: string | number
+  allocations?: LedgerAllocation[]
 }
 
 type FamilySummary = {
@@ -82,6 +100,11 @@ const filterCategory = ref('all')
 const getCategoryIcon = (name: string) =>
   categoryIcons.value[name] ?? defaultCategoryIcons[name] ?? 'mdi:tag-outline'
 
+const getAllocationSum = (record: LedgerRecord) =>
+  (record.allocations ?? []).reduce((sum, row) => sum + Number(row.amount || 0), 0)
+
+const getSelfIncome = (record: LedgerRecord) => Math.max(0, record.amount - getAllocationSum(record))
+
 const categorySelectOptions = computed<CategoryOption[]>(() =>
   categories.value.map((name) => ({ value: name, label: name, icon: getCategoryIcon(name) }))
 )
@@ -100,16 +123,22 @@ const selectedDate = shallowRef(toLocalDateKey(new Date()))
 
 const modalOpen = ref(false)
 const familyOverviewOpen = ref(false)
+const allocationModalOpen = ref(false)
+const allocationTarget = ref<LedgerRecord | null>(null)
 
 const { flyToRecycle } = useRecycleFly()
 const familyTab = ref<'expense' | 'income' | 'category'>('category')
 const editingId = ref<string | number | null>(null)
+
+const ledgerMembers = ref<Array<{ id: string | number; name: string }>>([])
+
 const form = ref({
   type: 'expense' as LedgerType,
   category: categories.value[0] ?? '其他',
   amount: 0,
   date: new Date().toISOString().slice(0, 10),
-  note: ''
+  note: '',
+  allocations: [] as AllocationDraft[]
 })
 
 const dailyRecords = computed(() =>
@@ -127,7 +156,12 @@ const filtered = computed(() => {
 
 
 const totalIncome = computed(() =>
-  records.value.filter((r) => r.type === 'income').reduce((sum, r) => sum + r.amount, 0)
+  records.value
+    .filter((r) => r.type === 'income')
+    .reduce((sum, r) => {
+      const alloc = (r.allocations ?? []).reduce((acc, row) => acc + Number(row.amount || 0), 0)
+      return sum + (r.amount - alloc)
+    }, 0)
 )
 const totalExpense = computed(() =>
   records.value.filter((r) => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0)
@@ -279,7 +313,8 @@ const fetchRecords = async () => {
         amount: Number(item.amount),
         date: item.date,
         note: item.note ?? '',
-        memberId: item.member_id ?? item.memberId ?? 'self'
+        memberId: item.member_id ?? item.memberId ?? 'self',
+        allocations: Array.isArray(item.allocations) ? item.allocations : []
       }
     })
   } catch (err: any) {
@@ -307,6 +342,22 @@ const fetchFamilySummary = async () => {
     }
   } catch {
     // ignore
+  }
+}
+
+const fetchLedgerMembers = async () => {
+  try {
+    const data = await apiFetch<any[]>('/ledger/members')
+    if (Array.isArray(data)) {
+      ledgerMembers.value = data
+        .map((item) => ({
+          id: item.id ?? item.userId,
+          name: (item.nickname ?? item.account ?? '').trim()
+        }))
+        .filter((item) => item.id && item.name)
+    }
+  } catch {
+    ledgerMembers.value = []
   }
 }
 
@@ -380,7 +431,8 @@ const openCreate = () => {
     category: categories.value[0] ?? '其他',
     amount: 0,
     date: toLocalDateKey(new Date()),
-    note: ''
+    note: '',
+    allocations: []
   }
   modalOpen.value = true
 }
@@ -392,24 +444,75 @@ const openEdit = (item: LedgerRecord) => {
     category: item.category,
     amount: item.amount,
     date: item.date,
-    note: item.note
+    note: item.note,
+    allocations: (item.allocations ?? []).map((row) => ({
+      memberId: String(row.memberId ?? ''),
+      amount: Number(row.amount || 0)
+    }))
   }
   modalOpen.value = true
 }
 
+const allocationTotal = computed(() =>
+  (form.value.allocations ?? []).reduce((sum, row) => sum + Number(row.amount || 0), 0)
+)
+
+const allocationRemaining = computed(() => Math.max(0, Number(form.value.amount || 0) - allocationTotal.value))
+
+const memberOptions = computed<CategoryOption[]>(() =>
+  ledgerMembers.value.map((m) => ({ value: String(m.id), label: m.name, icon: 'mdi:account' }))
+)
+
+const addAllocation = () => {
+  form.value.allocations.push({ memberId: memberOptions.value[0]?.value ?? '', amount: 0 })
+}
+
+const removeAllocation = (index: number) => {
+  form.value.allocations.splice(index, 1)
+}
+
+const openAllocationModal = (item: LedgerRecord) => {
+  allocationTarget.value = item
+  allocationModalOpen.value = true
+}
+
+
 const saveRecord = async () => {
   if (!form.value.note.trim()) return
+
+  if (form.value.type === 'income' && allocationTotal.value - Number(form.value.amount || 0) > 0.0001) {
+    pushToast('分配金额不能超过收入', 'error')
+    return
+  }
+
+  const payload: any = {
+    type: form.value.type,
+    category: form.value.category,
+    amount: form.value.amount,
+    date: form.value.date,
+    note: form.value.note
+  }
+
+  if (form.value.type === 'income') {
+    payload.allocations = (form.value.allocations ?? [])
+      .filter((row) => row.memberId && Number(row.amount || 0) > 0)
+      .map((row) => ({
+        memberId: Number(row.memberId),
+        amount: Number(row.amount)
+      }))
+  }
+
   try {
     if (editingId.value) {
       await apiFetch(`/ledger/records/${editingId.value}`, {
         method: 'PATCH',
-        body: form.value
+        body: payload
       })
       pushToast('记账已更新', 'success')
     } else {
       await apiFetch('/ledger/records', {
         method: 'POST',
-        body: form.value
+        body: payload
       })
       pushToast('记账已创建', 'success')
     }
@@ -449,7 +552,13 @@ onMounted(async () => {
       familyOverviewOpen.value = true
     }
   }
-  await Promise.all([loadCurrentMember(), fetchCategories(), fetchRecords(), fetchFamilySummary()])
+  await Promise.all([
+    loadCurrentMember(),
+    fetchCategories(),
+    fetchRecords(),
+    fetchFamilySummary(),
+    fetchLedgerMembers()
+  ])
 })
 </script>
 
@@ -544,11 +653,20 @@ onMounted(async () => {
                 </span>
                 · {{ item.date }}
               </p>
+
             </div>
             <div class="ledger-amount" :class="item.type">
               {{ item.type === 'income' ? '+' : '-' }}¥{{ item.amount }}
             </div>
             <div class="ledger-actions">
+              <button
+                v-if="item.type === 'income' && (item.allocations?.length || 0) > 0"
+                class="ghost task-pill icon-only"
+                @click="openAllocationModal(item)"
+                title="查看分配详情"
+              >
+                <Icon icon="mdi:account-group" />
+              </button>
               <button class="ghost task-pill" @click="openEdit(item)">编辑</button>
               <button class="ghost task-pill danger" @click="removeRecord(item.id, $event)">删除</button>
             </div>
@@ -579,6 +697,34 @@ onMounted(async () => {
               <span>金额</span>
               <input v-model.number="form.amount" type="number" min="0" />
             </label>
+
+            <div v-if="form.type === 'income'" class="alloc-editor">
+              <div class="alloc-head">
+                <div>
+                  <div class="alloc-head-title">收入分配</div>
+                  <div class="muted">分配给成员的金额会记到成员收入；剩余为你自己的收入</div>
+                </div>
+                <button class="ghost task-pill" @click="addAllocation">新增分配</button>
+              </div>
+
+              <div class="alloc-stats">
+                <span class="alloc-pill">已分配 ¥{{ formatAmount(allocationTotal) }}</span>
+                <span class="alloc-pill">剩余（自己）¥{{ formatAmount(allocationRemaining) }}</span>
+              </div>
+
+              <div class="alloc-rows">
+                <div v-for="(row, idx) in form.allocations" :key="idx" class="alloc-row">
+                  <CategorySelect v-model="row.memberId" :options="memberOptions" />
+                  <input v-model.number="row.amount" type="number" min="0" placeholder="金额" class="alloc-amt" />
+                  <button class="ghost task-pill danger" @click="removeAllocation(idx)">删除</button>
+                </div>
+
+                <div v-if="!form.allocations.length" class="empty-state">暂无分配，全部收入记为你自己</div>
+              </div>
+
+              <div class="muted">成员列表来自系统用户（users），如需新增成员请先注册/创建用户</div>
+            </div>
+
             <label>
               <span>日期</span>
               <input v-model="form.date" type="date" />
@@ -591,6 +737,36 @@ onMounted(async () => {
           <div class="modal-actions">
             <button class="ghost" @click="modalOpen = false">取消</button>
             <button class="primary" @click="saveRecord">保存</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="backdrop-fade">
+      <div v-if="allocationModalOpen && allocationTarget" class="modal-backdrop" @click.self="allocationModalOpen = false">
+        <div class="modal">
+          <div class="modal-head">
+            <h3>分配详情</h3>
+            <button class="ghost" @click="allocationModalOpen = false">关闭</button>
+          </div>
+          <div class="modal-body">
+            <div class="alloc-detail-head">
+              <div class="alloc-detail-title">{{ allocationTarget.note }}</div>
+              <div class="muted">{{ allocationTarget.date }} · ¥{{ formatAmount(allocationTarget.amount) }}</div>
+            </div>
+            <div class="alloc-lines">
+              <div v-for="(row, idx) in allocationTarget.allocations" :key="idx" class="alloc-line">
+                <span class="alloc-name">{{ row.memberName || '成员' }}</span>
+                <span class="alloc-amount">¥{{ formatAmount(row.amount) }}</span>
+              </div>
+              <div class="alloc-line self">
+                <span class="alloc-name">未分配（自己）</span>
+                <span class="alloc-amount">¥{{ formatAmount(getSelfIncome(allocationTarget)) }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="primary" @click="allocationModalOpen = false">知道了</button>
           </div>
         </div>
       </div>
@@ -678,6 +854,17 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
+.ledger-actions .icon-only {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.ledger-actions .icon-only .iconify {
+  width: 16px;
+  height: 16px;
+}
+
 .ledger-cat {
   display: inline-flex;
   align-items: center;
@@ -688,6 +875,104 @@ onMounted(async () => {
   width: 14px;
   height: 14px;
   color: color-mix(in srgb, var(--text) 75%, transparent);
+}
+
+.alloc-lines {
+  display: grid;
+  gap: 6px;
+}
+
+.alloc-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.alloc-line.self {
+  color: var(--text-muted);
+}
+
+.alloc-amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.alloc-editor {
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  display: grid;
+  gap: 10px;
+}
+
+.alloc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.alloc-head-title {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.alloc-detail-head {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.alloc-detail-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.alloc-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.alloc-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.alloc-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.alloc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.alloc-amt {
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+}
+
+
+@media (max-width: 640px) {
+  .alloc-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .family-tabs {
