@@ -17,6 +17,7 @@ addCollection(mdi)
 const defaultCategories = ['餐饮', '交通', '居家', '教育', '娱乐', '工资', '红包', '奖金', '报销', '退款', '收款', '上缴', '其他']
 const defaultCategoryIcons: Record<string, string> = {
   餐饮: 'mdi:food',
+  食材: 'mdi:carrot',
   交通: 'mdi:train-car',
   居家: 'mdi:home',
   教育: 'mdi:school',
@@ -756,62 +757,65 @@ onMounted(async () => {
 
     <Transition name="backdrop-fade">
       <div v-if="modalOpen" class="modal-backdrop" @click.self="modalOpen = false">
-        <div class="modal">
+        <div class="modal ledger-modal">
           <div class="modal-head">
             <h3>{{ editingId ? '编辑记录' : '新增记录' }}</h3>
             <button class="ghost" @click="modalOpen = false">关闭</button>
           </div>
-          <div class="modal-body">
-            <label>
-              <span>类型</span>
-              <select v-model="form.type">
-                <option v-for="t in types" :key="t" :value="t">{{ t === 'expense' ? '支出' : '收入' }}</option>
-              </select>
-            </label>
-            <label>
-              <span>分类</span>
-              <CategorySelect v-model="form.category" :options="categorySelectOptions" />
-            </label>
-            <label>
-              <span>金额</span>
-              <input v-model.number="form.amount" type="number" min="0" />
-            </label>
-
-            <div v-if="form.type === 'income'" class="alloc-editor">
-              <div class="alloc-head">
-                <div>
-                  <div class="alloc-head-title">收入分配</div>
-                  <div class="muted">分配给成员的金额会记到成员收入；剩余为你自己的收入</div>
-                </div>
-                <button class="ghost task-pill" @click="addAllocation">新增分配</button>
-              </div>
-
-              <div class="alloc-stats">
-                <span class="alloc-pill">已分配 ¥{{ formatAmount(allocationTotal) }}</span>
-                <span class="alloc-pill">剩余（自己）¥{{ formatAmount(allocationRemaining) }}</span>
-              </div>
-
-              <div class="alloc-rows">
-                <div v-for="(row, idx) in form.allocations" :key="idx" class="alloc-row">
-                  <CategorySelect v-model="row.memberId" :options="memberOptions" />
-                  <input v-model.number="row.amount" type="number" min="0" placeholder="金额" class="alloc-amt" />
-                  <button class="ghost task-pill danger" @click="removeAllocation(idx)">删除</button>
-                </div>
-
-                <div v-if="!form.allocations.length" class="empty-state">暂无分配，全部收入记为你自己</div>
-              </div>
-
-              <div class="muted">成员列表来自系统用户（users），如需新增成员请先注册/创建用户</div>
+          <div class="modal-body ledger-modal-body">
+            <div class="ledger-form-main">
+              <label>
+                <span>类型</span>
+                <select v-model="form.type">
+                  <option v-for="t in types" :key="t" :value="t">{{ t === 'expense' ? '支出' : '收入' }}</option>
+                </select>
+              </label>
+              <label>
+                <span>分类</span>
+                <CategorySelect v-model="form.category" :options="categorySelectOptions" />
+              </label>
+              <label>
+                <span>金额</span>
+                <input v-model.number="form.amount" type="number" min="0" />
+              </label>
+              <label>
+                <span>日期</span>
+                <input v-model="form.date" type="date" />
+              </label>
+              <label>
+                <span>备注</span>
+                <input v-model="form.note" placeholder="例如：午餐" />
+              </label>
             </div>
 
-            <label>
-              <span>日期</span>
-              <input v-model="form.date" type="date" />
-            </label>
-            <label>
-              <span>备注</span>
-              <input v-model="form.note" placeholder="例如：午餐" />
-            </label>
+            <div v-if="form.type === 'income'" class="ledger-form-side">
+              <div class="alloc-editor">
+                <div class="alloc-head">
+                  <div>
+                    <div class="alloc-head-title">收入分配</div>
+                    <div class="muted">分配给成员的金额会记到成员收入；剩余为你自己的收入</div>
+                  </div>
+                  <button class="ghost task-pill" @click="addAllocation">新增分配</button>
+                </div>
+
+                <div class="alloc-stats">
+                  <span class="alloc-pill">已分配 ¥{{ formatAmount(allocationTotal) }}</span>
+                  <span class="alloc-pill">剩余（自己）¥{{ formatAmount(allocationRemaining) }}</span>
+                </div>
+
+                <div class="alloc-rows">
+                  <div v-for="(row, idx) in form.allocations" :key="idx" class="alloc-row">
+                    <CategorySelect v-model="row.memberId" :options="memberOptions" />
+                    <input v-model.number="row.amount" type="number" min="0" placeholder="金额" class="alloc-amt" />
+                    <button class="ghost task-pill danger" @click="removeAllocation(idx)">删除</button>
+                  </div>
+
+                  <div v-if="!form.allocations.length" class="empty-state">暂无分配，全部收入记为你自己</div>
+                </div>
+
+                <div class="muted">成员列表来自系统用户（users），如需新增成员请先注册/创建用户</div>
+              </div>
+            </div>
           </div>
           <div class="modal-actions">
             <button class="ghost" @click="modalOpen = false">取消</button>
@@ -839,7 +843,7 @@ onMounted(async () => {
                 <span class="alloc-amount">¥{{ formatAmount(row.amount) }}</span>
               </div>
               <div class="alloc-line self">
-                <span class="alloc-name">未分配（自己）</span>
+                <span class="alloc-name">自己</span>
                 <span class="alloc-amount">¥{{ formatAmount(getSelfIncome(allocationTarget)) }}</span>
               </div>
             </div>
@@ -1059,6 +1063,42 @@ onMounted(async () => {
 .alloc-detail-title {
   font-weight: 700;
   font-size: 14px;
+}
+
+.ledger-modal {
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ledger-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ledger-form-main,
+.ledger-form-side {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 980px) {
+  .ledger-modal {
+    max-width: 860px;
+  }
+  .ledger-modal-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  .ledger-form-side .alloc-editor {
+    position: sticky;
+    top: 0;
+  }
 }
 
 .budget-meta {
