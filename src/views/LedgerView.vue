@@ -170,7 +170,21 @@ const totalIncome = computed(() =>
 const totalExpense = computed(() =>
   records.value.filter((r) => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0)
 )
-const balance = computed(() => totalIncome.value - totalExpense.value)
+
+const budget = ref({
+  month: '',
+  targetAmount: 0,
+  expenseAmount: 0,
+  balance: 0,
+  ratio: 0,
+  frozen: false
+})
+const budgetModalOpen = ref(false)
+const budgetAmount = ref(0)
+const budgetLogs = ref<Array<{ amount: number; created_at: string }>>([])
+
+const monthlyExpense = computed(() => (budget.value.expenseAmount || 0) || totalExpense.value)
+const balance = computed(() => (budget.value.balance ?? 0))
 
 const familyMembers = computed(() => {
   if (familySummary.value.members.length) {
@@ -365,6 +379,57 @@ const fetchLedgerMembers = async () => {
     }
   } catch {
     ledgerMembers.value = []
+  }
+}
+
+const fetchBudget = async () => {
+  try {
+    const data = await apiFetch<any>('/ledger/budget')
+    budget.value = {
+      month: data.month,
+      targetAmount: Number(data.targetAmount ?? 0),
+      expenseAmount: Number(data.expenseAmount ?? 0),
+      balance: Number(data.balance ?? 0),
+      ratio: Number(data.ratio ?? 0),
+      frozen: Boolean(data.frozen)
+    }
+    budgetAmount.value = budget.value.targetAmount
+  } catch {
+    // ignore
+  }
+}
+
+const fetchBudgetLogs = async () => {
+  if (!budget.value.month) return
+  try {
+    const data = await apiFetch<any[]>(`/ledger/budget/logs?month=${budget.value.month}`)
+    budgetLogs.value = (data ?? []).map((row) => ({
+      amount: Number(row.amount ?? 0),
+      created_at: row.created_at
+    }))
+  } catch {
+    budgetLogs.value = []
+  }
+}
+
+const openBudgetModal = async () => {
+  budgetAmount.value = budget.value.targetAmount
+  budgetModalOpen.value = true
+  await fetchBudgetLogs()
+}
+
+const saveBudget = async () => {
+  try {
+    await apiFetch('/ledger/budget', {
+      method: 'POST',
+      body: { month: budget.value.month, amount: budgetAmount.value }
+    })
+    await fetchBudget()
+    await fetchBudgetLogs()
+    budgetModalOpen.value = false
+    pushToast('目标已更新', 'success')
+  } catch (err: any) {
+    pushToast(err?.message || '目标更新失败', 'error')
   }
 }
 
@@ -564,7 +629,8 @@ onMounted(async () => {
     fetchCategories(),
     fetchRecords(),
     fetchFamilySummary(),
-    fetchLedgerMembers()
+    fetchLedgerMembers(),
+    fetchBudget()
   ])
 })
 </script>
@@ -593,11 +659,12 @@ onMounted(async () => {
           </div>
           <div class="stat-card">
             <span>本月支出</span>
-            <strong>¥ {{ formatAmount(totalExpense) }}</strong>
+            <strong>¥ {{ formatAmount(monthlyExpense) }}</strong>
           </div>
-          <div class="stat-card">
+          <div class="stat-card clickable" @click="openBudgetModal">
             <span>结余</span>
             <strong>¥ {{ formatAmount(balance) }}</strong>
+            <small class="muted">目标 ¥{{ formatAmount(budget.targetAmount) }}</small>
           </div>
           <div class="stat-card">
             <span>记录数</span>
@@ -627,22 +694,22 @@ onMounted(async () => {
             <h3>记账记录</h3>
             <p class="muted">共 {{ dailyRecords.length }} 条</p>
           </div>
-          <div class="ledger-date">
-            <span class="date-label">日期</span>
-            <input v-model="selectedDate" type="date" class="date-input" />
-          </div>
         </div>
 
         <div class="task-tools">
-          <div class="search">
-            <input v-model="query" placeholder="搜索备注" />
+          <div class="ledger-date task-date">
+            <span class="date-label">日期</span>
+            <input v-model="selectedDate" type="date" class="date-input" />
           </div>
-          <select v-model="filterType">
+          <select v-model="filterType" class="task-type">
             <option value="all">全部</option>
             <option value="expense">支出</option>
             <option value="income">收入</option>
           </select>
-          <CategorySelect v-model="filterCategory" :options="filterCategoryOptions" />
+          <div class="search task-search">
+            <input v-model="query" placeholder="搜索备注" />
+          </div>
+          <CategorySelect v-model="filterCategory" :options="filterCategoryOptions" class="task-category" />
         </div>
 
         <div v-if="loading" class="empty-state">加载中…</div>
@@ -785,6 +852,41 @@ onMounted(async () => {
     </Transition>
 
     <Transition name="backdrop-fade">
+      <div v-if="budgetModalOpen" class="modal-backdrop" @click.self="budgetModalOpen = false">
+        <div class="modal">
+          <div class="modal-head">
+            <h3>设置当月目标</h3>
+            <button class="ghost" @click="budgetModalOpen = false">关闭</button>
+          </div>
+          <div class="modal-body">
+            <label>
+              <span>目标支出</span>
+              <input v-model.number="budgetAmount" type="number" min="0" />
+            </label>
+            <div class="budget-meta">
+              <span>本月支出：¥{{ formatAmount(budget.expenseAmount) }}</span>
+              <span>结余：¥{{ formatAmount(budget.balance) }}</span>
+            </div>
+            <div class="budget-logs">
+              <div class="budget-logs-title">本月修改记录（{{ budgetLogs.length }} 次）</div>
+              <div v-if="!budgetLogs.length" class="muted">暂无修改记录</div>
+              <div v-else class="budget-log-list">
+                <div v-for="(log, idx) in budgetLogs" :key="idx" class="budget-log-row">
+                  <span>{{ log.created_at }}</span>
+                  <strong>¥{{ formatAmount(log.amount) }}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="ghost" @click="budgetModalOpen = false">取消</button>
+            <button class="primary" @click="saveBudget">保存</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="backdrop-fade">
       <div v-if="familyOverviewOpen" class="modal-backdrop" @click.self="familyOverviewOpen = false">
         <div class="modal family-modal">
           <div class="modal-head">
@@ -864,6 +966,15 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.stat-card.clickable {
+  cursor: pointer;
+}
+
+.stat-card.clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
 }
 
 .ledger-actions .icon-only {
@@ -950,6 +1061,37 @@ onMounted(async () => {
   font-size: 14px;
 }
 
+.budget-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.budget-logs {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.budget-logs-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.budget-log-list {
+  display: grid;
+  gap: 6px;
+}
+
+.budget-log-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text);
+}
+
 .alloc-stats {
   display: flex;
   gap: 8px;
@@ -1031,14 +1173,44 @@ onMounted(async () => {
 
 .task-tools {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.75fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-areas: "date type search category";
   gap: 10px;
   align-items: center;
+}
+
+.task-tools .task-date {
+  grid-area: date;
+}
+
+.task-tools .task-type {
+  grid-area: type;
+}
+
+.task-tools .task-search {
+  grid-area: search;
+}
+
+.task-tools .task-category {
+  grid-area: category;
 }
 
 .task-tools .search,
 .task-tools select {
   width: 100%;
+}
+
+.task-tools select {
+  height: 32px;
+}
+
+:deep(.task-category .cat-trigger) {
+  height: 32px;
+  padding: 0 8px;
+}
+
+:deep(.task-category .cat-label) {
+  font-size: 12px;
 }
 
 
@@ -1281,7 +1453,10 @@ onMounted(async () => {
     flex: 1 1 140px;
   }
   .task-tools {
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+    grid-template-areas:
+      "date type"
+      "search category";
     gap: 8px;
   }
   .ledger-list-head {

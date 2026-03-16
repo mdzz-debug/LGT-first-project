@@ -355,24 +355,24 @@ onMounted(() => {
               <h3>任务列表</h3>
               <p class="muted">按日期查看任务</p>
             </div>
-            <div class="task-date">
-              <span class="date-label">日期</span>
-              <input v-model="selectedDate" type="date" class="date-input" />
-            </div>
           </div>
 
           <div class="task-toolbar">
             <div class="task-filters">
-              <div class="search">
-                <Icon icon="mdi:magnify" />
-                <input v-model="query" placeholder="搜索任务" />
+              <div class="task-date task-filter-date">
+                <span class="date-label">日期</span>
+                <input v-model="selectedDate" type="date" class="date-input" />
               </div>
-              <select v-model="statusFilter">
+              <select v-model="statusFilter" class="task-filter-status">
                 <option value="all">全部</option>
                 <option value="todo">待办</option>
                 <option value="done">已完成</option>
               </select>
-              <select v-model="priorityFilter">
+              <div class="search task-filter-search">
+                <Icon icon="mdi:magnify" />
+                <input v-model="query" placeholder="搜索任务" />
+              </div>
+              <select v-model="priorityFilter" class="task-filter-priority">
                 <option value="all">优先级</option>
                 <option v-for="item in priorities" :key="item" :value="item">
                   {{ item }}
