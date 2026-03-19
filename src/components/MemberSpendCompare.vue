@@ -166,11 +166,133 @@ const nextMonth = () => {
         :tiles="memberWaffle.tiles"
         :legend="memberWaffle.legend"
         :amount-formatter="formatAmount"
-        :size="160"
+        size="min(100%, 320px)"
+        :show-legend="false"
       />
+      <div class="member-compare-list">
+        <div
+          v-for="item in memberWaffle.legend"
+          :key="item.label"
+          class="member-compare-item"
+        >
+          <span class="member-compare-dot" :style="{ background: item.color }"></span>
+          <span class="member-compare-name">{{ item.label }}</span>
+          <span class="member-compare-amount">¥ {{ formatAmount(item.amount) }}</span>
+        </div>
+      </div>
     </div>
   </section>
 </template>
 
 <style scoped>
+.member-compare {
+  display: grid;
+  gap: 14px;
+}
+
+.member-compare-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.member-compare-head h3 {
+  margin: 0;
+}
+
+.member-compare-month {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.month-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 104px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  font-weight: 600;
+}
+
+.month-button {
+  min-width: 72px;
+}
+
+.member-compare-summary {
+  font-weight: 600;
+}
+
+.member-compare-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(220px, 1fr);
+  gap: 20px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.member-compare-grid :deep(.waffle-grid-wrap) {
+  width: 320px;
+}
+
+.member-compare-list {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.member-compare-item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.member-compare-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.member-compare-name {
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.member-compare-amount {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .member-compare-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .member-compare-grid :deep(.waffle-grid-wrap) {
+    width: 100%;
+  }
+
+  .member-compare-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+  }
+
+  .month-pill {
+    min-width: 92px;
+  }
+}
 </style>

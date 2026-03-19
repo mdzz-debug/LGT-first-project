@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { Icon, addCollection } from '@iconify/vue'
 import mdi from '@iconify-json/mdi/icons.json'
 import AppHeader from '../components/AppHeader.vue'
@@ -10,7 +10,6 @@ import type { CategoryOption } from '../components/ledger/CategorySelect.vue'
 import { buildWaffle } from '../utils/waffle'
 import { apiFetch } from '../api/client'
 import { pushToast } from '../composables/useToast'
-import { useRecycleFly } from '../composables/useRecycleFly'
 
 addCollection(mdi)
 
@@ -35,8 +34,28 @@ const defaultCategoryIcons: Record<string, string> = {
   上缴: 'mdi:bank-transfer',
   其他: 'mdi:dots-horizontal'
 }
+const defaultCategoryColors: Record<string, string> = {
+  餐饮: '#f97316',
+  交通: '#fb7185',
+  居家: '#facc15',
+  教育: '#34d399',
+  娱乐: '#60a5fa',
+  医疗: '#a78bfa',
+  购物: '#f59e0b',
+  服饰: '#14b8a6',
+  美妆: '#ec4899',
+  工资: '#22c55e',
+  红包: '#ef4444',
+  奖金: '#eab308',
+  报销: '#06b6d4',
+  退款: '#38bdf8',
+  收款: '#8b5cf6',
+  上缴: '#6366f1',
+  其他: '#94a3b8'
+}
 const categories = ref<string[]>([...defaultCategories])
 const categoryIcons = ref<Record<string, string>>({ ...defaultCategoryIcons })
+const categoryColors = ref<Record<string, string>>({ ...defaultCategoryColors })
 const types = ['expense', 'income'] as const
 
 type LedgerType = (typeof types)[number]
@@ -58,6 +77,7 @@ type LedgerRecord = {
   category: string
   categoryId?: string | number
   categoryIcon?: string
+  categoryColor?: string
   amount: number
   date: string
   note: string
@@ -66,6 +86,8 @@ type LedgerRecord = {
   recordKind?: string
   sourceUserName?: string
   sourceNote?: string
+  taskId?: string | number | null
+  taskTitle?: string | null
 }
 
 type FamilySummary = {
@@ -82,6 +104,7 @@ type FamilySummary = {
   categories: Array<{
     category: string
     total: number
+    color?: string
   }>
 }
 
@@ -104,6 +127,9 @@ const filterCategory = ref('all')
 
 const getCategoryIcon = (name: string) =>
   categoryIcons.value[name] ?? defaultCategoryIcons[name] ?? 'mdi:tag-outline'
+
+const getCategoryColor = (name: string) =>
+  categoryColors.value[name] ?? defaultCategoryColors[name] ?? '#cbd5f5'
 
 const getAllocationSum = (record: LedgerRecord) =>
   (record.allocations ?? []).reduce((sum, row) => sum + Number(row.amount || 0), 0)
@@ -131,15 +157,16 @@ const familyOverviewOpen = ref(false)
 const allocationModalOpen = ref(false)
 const allocationTarget = ref<LedgerRecord | null>(null)
 
-const { flyToRecycle } = useRecycleFly()
 const familyTab = ref<'expense' | 'income' | 'category'>('category')
 const editingId = ref<string | number | null>(null)
 
 const ledgerMembers = ref<Array<{ id: string | number; name: string }>>([])
+const taskOptions = ref<Array<{ id: string | number; title: string; done?: boolean }>>([])
 
 const form = ref({
   type: 'expense' as LedgerType,
   category: categories.value[0] ?? '其他',
+  taskId: '',
   amount: 0,
   date: new Date().toISOString().slice(0, 10),
   note: '',
@@ -245,7 +272,7 @@ const familyCategoryTotals = computed(() => {
   const totals = categories.value.map((cat) => {
     const row = familySummary.value.categories.find((item) => item.category === cat)
     const total = row ? Number(row.total) : 0
-    return { category: cat, total }
+    return { category: cat, total, color: row?.color ?? getCategoryColor(cat) }
   })
   const max = Math.max(1, ...totals.map((row) => row.total))
   return totals.map((row) => ({
@@ -253,8 +280,6 @@ const familyCategoryTotals = computed(() => {
     percent: Math.round((row.total / max) * 100)
   }))
 })
-
-const chartPalette = ['#f97316', '#fb7185', '#facc15', '#34d399', '#60a5fa', '#a78bfa', '#f59e0b', '#22c55e']
 
 const formatAmount = (value: number | string) => Number(value || 0).toFixed(2)
 
@@ -267,10 +292,10 @@ const categoryChart = computed(() => {
     totals.set(key, (totals.get(key) ?? 0) + Number(r.amount))
   })
   const list = Array.from(totals.entries())
-    .map(([category, total], idx) => ({
+    .map(([category, total]) => ({
       category,
       total,
-      color: chartPalette[idx % chartPalette.length],
+      color: getCategoryColor(category),
       icon: getCategoryIcon(category)
     }))
     .filter((item) => item.total > 0)
@@ -296,14 +321,23 @@ const categoryWaffle = computed(() =>
   )
 )
 
+const categoryWaffleColumns = computed(() => {
+  const legend = categoryWaffle.value.legend ?? []
+  const leftCount = Math.ceil(legend.length / 2)
+  return {
+    left: legend.slice(0, leftCount),
+    right: legend.slice(leftCount)
+  }
+})
+
 const familyWaffle = computed(() =>
   buildWaffle(
     familyCategoryTotals.value
       .filter((row) => row.total > 0)
-      .map((row, idx) => ({
+      .map((row) => ({
         label: row.category,
         amount: row.total,
-        color: chartPalette[idx % chartPalette.length] || '#cbd5f5',
+        color: row.color ?? getCategoryColor(row.category),
         icon: getCategoryIcon(row.category)
       }))
   )
@@ -322,6 +356,12 @@ const fetchRecords = async () => {
         categoryIcons.value[category] ??
         defaultCategoryIcons[category] ??
         undefined
+      const categoryColor =
+        item.category_color ??
+        item.categoryColor ??
+        categoryColors.value[category] ??
+        defaultCategoryColors[category] ??
+        '#cbd5f5'
 
       return {
         id: item.id,
@@ -329,6 +369,7 @@ const fetchRecords = async () => {
         category,
         categoryId: item.category_id ?? item.categoryId ?? item.categoryID,
         categoryIcon,
+        categoryColor,
         amount: Number(item.amount),
         date: item.date,
         note: item.note ?? '',
@@ -336,7 +377,9 @@ const fetchRecords = async () => {
         allocations: Array.isArray(item.allocations) ? item.allocations : [],
         recordKind: item.record_kind ?? item.recordKind,
         sourceUserName: item.source_user_name ?? item.sourceUserName,
-        sourceNote: item.source_note ?? item.sourceNote
+        sourceNote: item.source_note ?? item.sourceNote,
+        taskId: item.task_id ?? item.taskId ?? null,
+        taskTitle: item.task_title ?? item.taskTitle ?? null
       }
     })
   } catch (err: any) {
@@ -360,7 +403,11 @@ const fetchFamilySummary = async () => {
         expense: Number(member.expense ?? 0),
         income: Number(member.income ?? 0)
       })),
-      categories: data.categories ?? []
+      categories: (data.categories ?? []).map((item: any) => ({
+        category: item.category ?? item.name ?? '其他',
+        total: Number(item.total ?? 0),
+        color: item.color ?? item.category_color ?? item.categoryColor ?? undefined
+      }))
     }
   } catch {
     // ignore
@@ -380,6 +427,21 @@ const fetchLedgerMembers = async () => {
     }
   } catch {
     ledgerMembers.value = []
+  }
+}
+
+const fetchTaskOptions = async () => {
+  try {
+    const data = await apiFetch<any[]>('/tasks')
+    taskOptions.value = (Array.isArray(data) ? data : [])
+      .map((item) => ({
+        id: item.id,
+        title: item.title ?? '未命名任务',
+        done: Boolean(item.done)
+      }))
+      .sort((a, b) => Number(a.done) - Number(b.done))
+  } catch {
+    taskOptions.value = []
   }
 }
 
@@ -419,6 +481,15 @@ const openBudgetModal = async () => {
   await fetchBudgetLogs()
 }
 
+const refreshLedgerView = async () => {
+  await Promise.all([fetchRecords(), fetchFamilySummary(), fetchTaskOptions(), fetchBudget()])
+  pushToast('记账数据已刷新', 'success')
+}
+
+const handleWindowFocus = () => {
+  fetchRecords()
+}
+
 const saveBudget = async () => {
   try {
     await apiFetch('/ledger/budget', {
@@ -426,9 +497,9 @@ const saveBudget = async () => {
       body: { month: budget.value.month, amount: budgetAmount.value }
     })
     await fetchBudget()
+    budgetAmount.value = budget.value.targetAmount
     await fetchBudgetLogs()
-    budgetModalOpen.value = false
-    pushToast('目标已更新', 'success')
+    pushToast('目标已更新，已刷新本月修改记录', 'success')
   } catch (err: any) {
     pushToast(err?.message || '目标更新失败', 'error')
   }
@@ -440,16 +511,22 @@ const fetchCategories = async () => {
 
     const base = [...defaultCategories]
     const nextIcons: Record<string, string> = { ...defaultCategoryIcons }
+    const nextColors: Record<string, string> = { ...defaultCategoryColors }
 
     if (Array.isArray(data) && data.length) {
       const names: string[] = []
       data.forEach((item) => {
         const name = (item?.name ?? item?.category ?? item) as any
         if (typeof name === 'string' && name.trim()) {
-          names.push(name.trim())
+          const key = name.trim()
+          names.push(key)
           const icon = (item?.icon ?? item?.category_icon ?? item?.categoryIcon) as any
           if (typeof icon === 'string' && icon.trim()) {
-            nextIcons[name.trim()] = icon.trim()
+            nextIcons[key] = icon.trim()
+          }
+          const color = (item?.color ?? item?.category_color ?? item?.categoryColor) as any
+          if (typeof color === 'string' && color.trim()) {
+            nextColors[key] = color.trim()
           }
         }
       })
@@ -464,10 +541,12 @@ const fetchCategories = async () => {
     }
 
     categoryIcons.value = nextIcons
+    categoryColors.value = nextColors
   } catch {
     categories.value = [...defaultCategories]
     if (!categories.value.includes('其他')) categories.value.push('其他')
     categoryIcons.value = { ...defaultCategoryIcons }
+    categoryColors.value = { ...defaultCategoryColors }
   }
 
   if (!categories.value.includes(form.value.category)) {
@@ -502,6 +581,7 @@ const openCreate = () => {
   form.value = {
     type: 'expense',
     category: categories.value[0] ?? '其他',
+    taskId: '',
     amount: 0,
     date: toLocalDateKey(new Date()),
     note: '',
@@ -515,6 +595,7 @@ const openEdit = (item: LedgerRecord) => {
   form.value = {
     type: item.type,
     category: item.category,
+    taskId: item.taskId ? String(item.taskId) : '',
     amount: item.amount,
     date: item.date,
     note: item.note,
@@ -561,6 +642,7 @@ const saveRecord = async () => {
   const payload: any = {
     type: form.value.type,
     category: form.value.category,
+    task_id: form.value.taskId ? Number(form.value.taskId) : null,
     amount: form.value.amount,
     date: form.value.date,
     note: form.value.note
@@ -597,13 +679,11 @@ const saveRecord = async () => {
   modalOpen.value = false
 }
 
-const removeRecord = async (id: string | number, evt?: MouseEvent) => {
+const removeRecord = async (id: string | number) => {
   if (typeof window !== 'undefined') {
     const ok = window.confirm('确认删除该记录吗？')
     if (!ok) return
   }
-  const sourceEl = (evt?.currentTarget as HTMLElement | null)?.closest('.ledger-item') as HTMLElement | null
-  flyToRecycle(sourceEl)
   try {
     await apiFetch(`/ledger/records/${id}`, { method: 'DELETE' })
     await fetchRecords()
@@ -631,8 +711,16 @@ onMounted(async () => {
     fetchRecords(),
     fetchFamilySummary(),
     fetchLedgerMembers(),
+    fetchTaskOptions(),
     fetchBudget()
   ])
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('focus', handleWindowFocus)
+    document.removeEventListener('visibilitychange', handleWindowFocus)
+  }
 })
 </script>
 
@@ -648,6 +736,7 @@ onMounted(async () => {
             <p class="muted">本月收支与分类概览</p>
           </div>
           <div class="ledger-actions">
+            <button class="ghost task-pill header-pill" @click="refreshLedgerView">刷新</button>
             <button class="ghost task-pill header-pill" @click="openFamilyOverview">家庭概览</button>
             <button class="primary header-pill" @click="openCreate">新增记录</button>
           </div>
@@ -679,12 +768,33 @@ onMounted(async () => {
             <h3>¥ {{ formatAmount(totalExpense) }}</h3>
             <p class="muted">本月支出总额</p>
           </div>
-          <WaffleGrid
-            :tiles="categoryWaffle.tiles"
-            :legend="categoryWaffle.legend"
-            :amount-formatter="formatAmount"
-            :size="220"
-          />
+          <div class="ledger-waffle-content">
+            <WaffleGrid
+              :tiles="categoryWaffle.tiles"
+              :legend="categoryWaffle.legend"
+              :amount-formatter="formatAmount"
+              :size="220"
+              :show-legend="false"
+            />
+            <div class="ledger-waffle-list-wrap">
+              <div class="ledger-waffle-list">
+                <div class="ledger-waffle-column">
+                  <div v-for="item in categoryWaffleColumns.left" :key="`left-${item.label}`" class="ledger-waffle-item">
+                    <span class="dot" :style="{ background: item.color }"></span>
+                    <span class="ledger-waffle-name">{{ item.label }}</span>
+                    <span class="ledger-waffle-amount">¥ {{ formatAmount(item.amount) }}</span>
+                  </div>
+                </div>
+                <div v-if="categoryWaffleColumns.right.length" class="ledger-waffle-column">
+                  <div v-for="item in categoryWaffleColumns.right" :key="`right-${item.label}`" class="ledger-waffle-item">
+                    <span class="dot" :style="{ background: item.color }"></span>
+                    <span class="ledger-waffle-name">{{ item.label }}</span>
+                    <span class="ledger-waffle-amount">¥ {{ formatAmount(item.amount) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div v-else class="rose-empty">暂无支出数据</div>
       </section>
@@ -723,10 +833,18 @@ onMounted(async () => {
               <h4>{{ item.note }}</h4>
               <p class="muted">
                 <span class="ledger-cat">
-                  <Icon class="ledger-cat-icon" :icon="item.categoryIcon || getCategoryIcon(item.category)" />
+                  <Icon
+                    class="ledger-cat-icon"
+                    :icon="item.categoryIcon || getCategoryIcon(item.category)"
+                    :style="{ color: item.categoryColor || getCategoryColor(item.category) }"
+                  />
                   <span>{{ item.category }}</span>
                 </span>
                 · {{ item.date }}
+              </p>
+              <p v-if="item.taskTitle" class="muted alloc-source task-link-note">
+                <Icon class="ledger-task-icon" icon="mdi:tag-check-outline" />
+                <span>关联任务：{{ item.taskTitle }}</span>
               </p>
               <p v-if="item.recordKind === 'allocation_in' && item.sourceNote" class="muted alloc-source">
                 来源：{{ item.sourceNote }}
@@ -747,7 +865,7 @@ onMounted(async () => {
               </button>
               <template v-if="item.recordKind !== 'allocation_in'">
                 <button class="ghost task-pill" @click="openEdit(item)">编辑</button>
-                <button class="ghost task-pill danger" @click="removeRecord(item.id, $event)">删除</button>
+                <button class="ghost task-pill danger" @click="removeRecord(item.id)">删除</button>
               </template>
             </div>
           </div>
@@ -773,6 +891,15 @@ onMounted(async () => {
               <label>
                 <span>分类</span>
                 <CategorySelect v-model="form.category" :options="categorySelectOptions" />
+              </label>
+              <label>
+                <span>关联任务</span>
+                <select v-model="form.taskId">
+                  <option value="">不关联任务</option>
+                  <option v-for="item in taskOptions" :key="item.id" :value="String(item.id)">
+                    {{ item.title }}{{ item.done ? '（已完成）' : '' }}
+                  </option>
+                </select>
               </label>
               <label>
                 <span>金额</span>
@@ -943,12 +1070,22 @@ onMounted(async () => {
               <div class="family-category-body">
                 <div class="family-waffle-stack">
                   <div class="family-waffle-wrap">
-                    <WaffleGrid
-                      :tiles="familyWaffle.tiles"
-                      :legend="familyWaffle.legend"
-                      :amount-formatter="formatAmount"
-                      :size="160"
-                    />
+                    <div class="family-waffle-layout">
+                      <WaffleGrid
+                        :tiles="familyWaffle.tiles"
+                        :legend="familyWaffle.legend"
+                        :amount-formatter="formatAmount"
+                        size="min(100%, 320px)"
+                        :show-legend="false"
+                      />
+                      <div class="family-waffle-list">
+                        <div v-for="item in familyWaffle.legend" :key="item.label" class="family-waffle-list-item">
+                          <span class="dot" :style="{ background: item.color }"></span>
+                          <span class="family-waffle-list-name">{{ item.label }}</span>
+                          <span class="family-waffle-list-amount">¥ {{ formatAmount(item.amount) }}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -992,21 +1129,63 @@ onMounted(async () => {
   height: 16px;
 }
 
+.ledger-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+  line-height: 18px;
+}
+
 .ledger-cat {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  line-height: 18px;
 }
 
 .ledger-cat-icon {
-  width: 14px;
-  height: 14px;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
   color: color-mix(in srgb, var(--text) 75%, transparent);
+  flex: 0 0 16px;
+  vertical-align: baseline;
+  transform: translateY(2px);
+}
+
+.ledger-cat-name,
+.ledger-meta-date,
+.ledger-meta-sep {
+  display: inline-block;
+  line-height: 18px;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+.ledger-meta-sep,
+.ledger-meta-date {
+  flex: 0 0 auto;
 }
 
 .alloc-source {
   margin-top: 4px;
   color: var(--text-muted);
+}
+
+.task-link-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent, #6366f1);
+}
+
+.ledger-task-icon {
+  font-size: 14px;
 }
 
 .alloc-lines {
@@ -1201,10 +1380,112 @@ onMounted(async () => {
   -webkit-overflow-scrolling: touch;
 }
 
+.family-category {
+  display: grid;
+  gap: 14px;
+}
+
+.family-category-head {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
 .family-category-summary {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
+}
+
+.family-category-body {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.family-waffle-stack {
+  width: min(100%, 720px);
+}
+
+.family-waffle-wrap {
+  width: 100%;
+}
+
+.family-waffle-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(220px, 1fr);
+  gap: 20px;
+  align-items: center;
+  justify-content: center;
+}
+
+.family-waffle-wrap :deep(.waffle-grid-wrap) {
+  width: 320px;
+}
+
+.family-waffle-list {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.family-waffle-list-item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.family-waffle-list-item .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.family-waffle-list-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+
+.family-waffle-list-amount {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .family-category-head {
+    font-size: 20px;
+  }
+
+  .family-waffle-stack {
+    width: 100%;
+  }
+
+  .family-waffle-layout {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .family-waffle-wrap :deep(.waffle-grid-wrap) {
+    width: 100%;
+  }
+
+  .family-waffle-list {
+    grid-template-columns: repeat(2, 140px);
+    justify-content: center;
+    gap: 8px 12px;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  .family-waffle-list-item {
+    width: 140px;
+  }
 }
 
 .ledger-stat-grid {
@@ -1290,9 +1571,9 @@ onMounted(async () => {
 
 .ledger-chart {
   display: grid;
-  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
   gap: 16px;
-  align-items: start;
+  align-items: center;
   padding: var(--card-pad);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -1303,6 +1584,72 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.ledger-waffle-content {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  justify-content: start;
+}
+
+.ledger-waffle-content :deep(.waffle-grid-wrap) {
+  width: 220px;
+}
+
+.ledger-waffle-list-wrap {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+  align-items: center;
+}
+
+.ledger-waffle-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 20px;
+  align-items: start;
+  justify-content: center;
+  width: min(100%, 420px);
+  max-width: 100%;
+}
+
+.ledger-waffle-column {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ledger-waffle-item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  justify-content: start;
+}
+
+.ledger-waffle-name {
+  min-width: 0;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+
+.ledger-waffle-amount {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  justify-self: start;
+}
+
+.ledger-waffle-item .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
 
 .chart-summary h3 {
@@ -1474,6 +1821,9 @@ onMounted(async () => {
   .ledger-chart {
     grid-template-columns: 1fr;
   }
+  .ledger-waffle-content {
+    grid-template-columns: minmax(0, 220px) minmax(220px, 1fr);
+  }
 }
 
 @media (max-width: 720px) {
@@ -1508,6 +1858,39 @@ onMounted(async () => {
   }
   .ledger-chart {
     grid-template-columns: 1fr;
+  }
+  .ledger-waffle-content {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .ledger-waffle-content :deep(.waffle-grid-wrap) {
+    width: 100%;
+  }
+  .ledger-waffle-list-wrap {
+    width: 100%;
+    justify-content: center;
+  }
+  .ledger-waffle-list {
+    width: 100%;
+    max-width: 100%;
+    gap: 10px 14px;
+  }
+  .ledger-waffle-column {
+    gap: 10px;
+  }
+  .ledger-waffle-item {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 10px minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+  .ledger-waffle-name {
+    max-width: none;
+    font-size: 12px;
+  }
+  .ledger-waffle-amount {
+    justify-self: end;
+    font-size: 12px;
   }
   .chart-grid-wrap {
     grid-template-columns: 1fr;

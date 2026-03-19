@@ -11,8 +11,10 @@ const props = defineProps<{
   legend: WaffleLegend[]
   legendColumns?: number
   amountFormatter?: (value: number) => string
-  size?: number
+  size?: number | string
+  legendWidth?: number | string
   cols?: number
+  showLegend?: boolean
 }>()
 
 const activeLabel = shallowRef<string | null>(null)
@@ -28,13 +30,25 @@ const formatAmount = (value: number) =>
   props.amountFormatter ? props.amountFormatter(value) : value.toFixed(2)
 
 const legendCols = computed(() => props.legendColumns ?? 2)
-const gridSize = computed(() => (props.size ? `${props.size}px` : '100%'))
+const gridSize = computed(() => {
+  if (typeof props.size === 'number') return `${props.size}px`
+  return props.size || '100%'
+})
+const legendWidth = computed(() => {
+  if (typeof props.legendWidth === 'number') return `${props.legendWidth}px`
+  return props.legendWidth || '180px'
+})
 const gridCols = computed(() => props.cols ?? 10)
+const showLegend = computed(() => props.showLegend !== false)
 </script>
 
 <template>
   <div class="waffle-grid-wrap">
-    <div class="waffle-grid" :style="{ '--legend-cols': legendCols }">
+    <div
+      class="waffle-grid"
+      :class="{ 'legend-hidden': !showLegend }"
+      :style="{ '--legend-cols': legendCols, '--legend-width': legendWidth }"
+    >
       <div class="grid" :style="{ '--grid-size': gridSize, '--grid-cols': gridCols }">
         <div
           v-for="(tile, idx) in tiles"
@@ -49,7 +63,7 @@ const gridCols = computed(() => props.cols ?? 10)
           <span class="overlay-percent">{{ activeInfo.percent }}%</span>
         </div>
       </div>
-      <div class="legend">
+      <div v-if="showLegend" class="legend">
         <div v-for="item in legend" :key="item.label" class="legend-row" @click="toggleActive(item.label)">
           <span class="dot" :style="{ background: item.color }"></span>
           <span class="legend-icon">
@@ -70,9 +84,13 @@ const gridCols = computed(() => props.cols ?? 10)
 
 .waffle-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px;
-  gap: 14px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) var(--legend-width, 180px);
+  gap: 18px;
+  align-items: center;
+}
+
+.waffle-grid.legend-hidden {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .grid {
@@ -132,7 +150,7 @@ const gridCols = computed(() => props.cols ?? 10)
 .legend-row {
   display: grid;
   grid-template-columns: 10px 16px minmax(0, 1fr) auto;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
   cursor: pointer;
 }
@@ -153,6 +171,7 @@ const gridCols = computed(() => props.cols ?? 10)
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.35;
 }
 
 .legend-amount {
@@ -161,6 +180,7 @@ const gridCols = computed(() => props.cols ?? 10)
   font-variant-numeric: tabular-nums;
   color: var(--text);
   white-space: nowrap;
+  padding-top: 1px;
 }
 
 .dot {

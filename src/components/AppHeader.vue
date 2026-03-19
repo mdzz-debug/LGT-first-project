@@ -6,13 +6,12 @@ import mdi from '@iconify-json/mdi/icons.json'
 import iconDashboard from '@mdi/svg/svg/view-dashboard-outline.svg?raw'
 import iconTasks from '@mdi/svg/svg/clipboard-check-outline.svg?raw'
 import iconLedger from '@mdi/svg/svg/wallet-outline.svg?raw'
-import iconHabits from '@mdi/svg/svg/leaf.svg?raw'
 import iconStats from '@mdi/svg/svg/chart-line.svg?raw'
 import iconThemeLight from '@mdi/svg/svg/weather-sunny.svg?raw'
 import iconThemeDark from '@mdi/svg/svg/moon-waning-crescent.svg?raw'
 import iconThemeWarm from '@mdi/svg/svg/fire.svg?raw'
 import iconPalette from '@mdi/svg/svg/palette.svg?raw'
-import { useTheme } from '../composables/useTheme'
+import { useBrandLogo } from '../composables/useBrandLogo'
 import { apiFetch } from '../api/client'
 import { pushToast } from '../composables/useToast'
 import { useModalHub } from '../composables/useModalHub'
@@ -22,13 +21,12 @@ addCollection(mdi)
 
 const route = useRoute()
 const router = useRouter()
-const { theme } = useTheme()
+const { theme, currentLogoUrl } = useBrandLogo()
 
 const navItems = [
   { label: '概览', path: '/dashboard', icon: iconDashboard },
   { label: '任务', path: '/tasks', icon: iconTasks },
   { label: '记账', path: '/ledger', icon: iconLedger },
-  { label: '习惯', path: '/habits', icon: iconHabits },
   { label: '统计', path: '/stats', icon: iconStats }
 ]
 
@@ -214,8 +212,9 @@ onMounted(loadProfile)
       <button class="ghost mobile-menu-btn" @click.stop="toggleMobileNav" aria-label="打开导航">
         <span class="mdi mdi-menu"></span>
       </button>
-      <span class="logo">P</span>
-      <span>PulseList</span>
+      <span class="logo">
+        <img :src="currentLogoUrl" alt="PulseHome logo" class="logo-img" />
+      </span>
     </div>
 
     <nav class="nav">

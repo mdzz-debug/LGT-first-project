@@ -83,7 +83,7 @@ const defaultCategories = ['家庭', '工作', '健康', '学习']
 const categories = ref<string[]>([...defaultCategories])
 const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
 
-const categoryIconMap: Record<string, string> = {
+const defaultCategoryIcons: Record<string, string> = {
   家庭: 'mdi:home-heart',
   工作: 'mdi:briefcase-outline',
   健康: 'mdi:heart-pulse',
@@ -93,8 +93,10 @@ const categoryIconMap: Record<string, string> = {
   任务管理: 'mdi:clipboard-check-outline'
 }
 
+const categoryIcons = ref<Record<string, string>>({ ...defaultCategoryIcons })
+
 const resolveCategoryIcon = (category: string) =>
-  categoryIconMap[category] || 'mdi:checkbox-marked-circle-outline'
+  categoryIcons.value[category] || defaultCategoryIcons[category] || 'mdi:checkbox-marked-circle-outline'
 
 const normalizeTaskIcon = (raw: string | undefined | null, category: string) => {
   const icon = (raw || '').trim()
@@ -358,6 +360,7 @@ const completed = computed(() => tasks.value.filter((t) => t.done).length)
 const focusMinutes = computed(() =>
   tasks.value.length ? completed.value * 25 : overview.value.focusMinutes
 )
+const reminderCount = computed(() => overview.value.todoCount || 0)
 
 
 
@@ -376,10 +379,33 @@ const openCreate = () => {
 
 const loadTaskCategories = async () => {
   try {
-    const data = await apiFetch<string[]>('/tasks/categories')
-    mergeCategories(data)
+    const data = await apiFetch<any[]>('/tasks/categories')
+    if (Array.isArray(data) && data.length) {
+      const names: string[] = []
+      const nextIcons: Record<string, string> = { ...defaultCategoryIcons }
+      data.forEach((item) => {
+        const name = (item?.name ?? item?.category ?? item) as string
+        if (typeof name === 'string' && name.trim()) {
+          const key = name.trim()
+          names.push(key)
+          const icon = (item?.icon ?? item?.category_icon ?? item?.categoryIcon) as string
+          if (icon && icon.trim()) {
+            nextIcons[key] = icon.trim()
+          }
+        }
+      })
+      const merged = new Set([...defaultCategories, ...names])
+      categories.value = Array.from(merged)
+      categoryIcons.value = nextIcons
+    } else {
+      categories.value = [...defaultCategories]
+    }
   } catch {
-    // ignore
+    categories.value = [...defaultCategories]
+  }
+
+  if (!categories.value.includes(form.value.category)) {
+    form.value.category = categories.value[0] ?? '家庭'
   }
 }
 
@@ -649,7 +675,7 @@ onUnmounted(() => {
             <div class="overview-card">
               <div>
                 <p class="muted">待办提醒</p>
-                <h2>{{ tasks.length ? tasks.length - completed : overview.todoCount }} 项</h2>
+                <h2>{{ reminderCount }} 项</h2>
               </div>
               <span class="overview-watermark">
                 <Icon icon="mdi:clipboard-check-outline" />
@@ -774,10 +800,11 @@ onUnmounted(() => {
             </label>
             <label>
               <span>分类</span>
-              <input v-model="form.category" list="task-categories" placeholder="选择或输入分类" />
-              <datalist id="task-categories">
-                <option v-for="item in categories" :key="item" :value="item" />
-              </datalist>
+              <select v-model="form.category">
+                <option v-for="item in categories" :key="item" :value="item">
+                  {{ item }}
+                </option>
+              </select>
             </label>
             <label>
               <span>优先级</span>

@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
-import { Icon, addCollection } from '@iconify/vue'
-import mdi from '@iconify-json/mdi/icons.json'
-import { useTheme } from '../composables/useTheme'
+import iconPalette from '@mdi/svg/svg/palette.svg?raw'
+import { useBrandLogo } from '../composables/useBrandLogo'
 import { apiFetch } from '../api/client'
 
 const router = useRouter()
-const { theme } = useTheme()
-
-addCollection(mdi)
+const { theme, currentLogoUrl } = useBrandLogo()
 
 const themes = [
   { id: 'light', label: '浅色' },
@@ -71,8 +68,10 @@ const login = async () => {
   <div class="page">
     <header class="topbar">
       <div class="brand">
-        <span class="logo">P</span>
-        <span>PulseList</span>
+        <span class="logo">
+          <img :src="currentLogoUrl" alt="PulseHome logo" class="logo-img" />
+        </span>
+        <span class="brand-text">PulseHome</span>
       </div>
       <div class="top-actions">
         <div class="theme-toggle">
@@ -88,7 +87,7 @@ const login = async () => {
         </div>
         <div class="theme-menu">
           <button class="ghost theme-menu-btn" @click="toggleThemeMenu" aria-label="切换主题">
-            <Icon class="icon" icon="mdi:palette" />
+            <span class="icon-svg" v-html="iconPalette"></span>
           </button>
           <div v-if="themeMenuOpen" class="theme-popover">
             <button
@@ -109,7 +108,7 @@ const login = async () => {
       <section class="promo glass">
         <div class="badge">Login · Theme System</div>
         <h1>专为家庭 & 小团队设计的轻量协作</h1>
-        <p>PulseList 把任务、习惯、专注节奏融在一个界面，支持多主题与成员共享。</p>
+        <p>PulseHome 把任务、习惯、专注节奏融在一个界面，支持多主题与成员共享。</p>
 
         <div class="highlight-viewport">
           <div class="highlight-track">

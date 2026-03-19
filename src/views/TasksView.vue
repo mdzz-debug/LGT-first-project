@@ -9,6 +9,32 @@ import { useRecycleFly } from '../composables/useRecycleFly'
 
 addCollection(mdi)
 
+type TaskLedgerMode = 'auto_complete' | 'aggregate_cost'
+
+type TaskLedgerSummary = {
+  linked_record_count: number
+  linked_expense_total: number
+  linked_income_total: number
+  net_expense_total: number
+}
+
+type TaskLedgerDetail = {
+  task: Record<string, any>
+  summary: TaskLedgerSummary
+  members: Array<{ user_id?: number | null; name: string; expense: number; income: number }>
+  categories: Array<{ category: string; expense: number; income: number }>
+  records: Array<{
+    id: string | number
+    type: 'expense' | 'income'
+    amount: number
+    date: string
+    note: string
+    category: string
+    nickname?: string
+    account?: string
+  }>
+}
+
 type Task = {
   id: string | number
   title: string
@@ -20,13 +46,22 @@ type Task = {
   dueDate: string
   done: boolean
   icon: string
+  ledgerMode: TaskLedgerMode
+  familyShared?: boolean
+  linkedRecordCount: number
+  linkedExpenseTotal: number
+  linkedIncomeTotal: number
 }
 
 const defaultCategories = ['家庭', '工作', '健康', '学习']
 const categories = ref<string[]>([...defaultCategories])
 const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
+const ledgerModes: Array<{ value: TaskLedgerMode; label: string }> = [
+  { value: 'auto_complete', label: '单次完成型' },
+  { value: 'aggregate_cost', label: '多笔聚合型' }
+]
 
-const categoryIconMap: Record<string, string> = {
+const defaultCategoryIcons: Record<string, string> = {
   家庭: 'mdi:home-heart',
   工作: 'mdi:briefcase-outline',
   健康: 'mdi:heart-pulse',
@@ -36,8 +71,10 @@ const categoryIconMap: Record<string, string> = {
   任务管理: 'mdi:clipboard-check-outline'
 }
 
+const categoryIcons = ref<Record<string, string>>({ ...defaultCategoryIcons })
+
 const resolveCategoryIcon = (category: string) =>
-  categoryIconMap[category] || 'mdi:checkbox-marked-circle-outline'
+  categoryIcons.value[category] || defaultCategoryIcons[category] || 'mdi:checkbox-marked-circle-outline'
 
 const normalizeTaskIcon = (raw: string | undefined | null, category: string) => {
   const icon = (raw || '').trim()
@@ -53,6 +90,9 @@ const mergeCategories = (next: string[]) => {
   const merged = new Set([...defaultCategories, ...next.filter(Boolean)])
   categories.value = Array.from(merged)
 }
+
+const getLedgerModeLabel = (mode: TaskLedgerMode) =>
+  mode === 'aggregate_cost' ? '多笔聚合型' : '单次完成型'
 
 const syncCategoriesFromTasks = () => {
   const merged = new Set(categories.value)
@@ -111,6 +151,8 @@ const toLocalDateKey = (date: Date) => {
   return new Date(date.getTime() - offset).toISOString().slice(0, 10)
 }
 
+const formatAmount = (value: number | string) => Number(value || 0).toFixed(2)
+
 const selectedDate = shallowRef(toLocalDateKey(new Date()))
 
 const getTaskRange = (task: Task) => {
@@ -138,6 +180,9 @@ const query = ref('')
 const statusFilter = ref<'all' | 'todo' | 'done'>('all')
 const priorityFilter = ref<'all' | Task['priority']>('all')
 const modalOpen = ref(false)
+const detailOpen = ref(false)
+const detailLoading = shallowRef(false)
+const detailData = ref<TaskLedgerDetail | null>(null)
 const editingId = ref<string | number | null>(null)
 
 const { flyToRecycle } = useRecycleFly()
@@ -148,21 +193,46 @@ const form = ref<{
   startAt: string
   endAt: string
   icon: string
+  ledgerMode: TaskLedgerMode
 }>({
   title: '',
   category: categories.value[0] ?? '家庭',
   priority: priorities[1] ?? 'P2',
   startAt: '',
   endAt: '',
-  icon: resolveCategoryIcon(categories.value[0] ?? '家庭')
+  icon: resolveCategoryIcon(categories.value[0] ?? '家庭'),
+  ledgerMode: 'auto_complete'
 })
 
 const loadTaskCategories = async () => {
   try {
-    const data = await apiFetch<string[]>('/tasks/categories')
-    mergeCategories(data)
+    const data = await apiFetch<any[]>('/tasks/categories')
+    if (Array.isArray(data) && data.length) {
+      const names: string[] = []
+      const nextIcons: Record<string, string> = { ...defaultCategoryIcons }
+      data.forEach((item) => {
+        const name = (item?.name ?? item?.category ?? item) as string
+        if (typeof name === 'string' && name.trim()) {
+          const key = name.trim()
+          names.push(key)
+          const icon = (item?.icon ?? item?.category_icon ?? item?.categoryIcon) as string
+          if (icon && icon.trim()) {
+            nextIcons[key] = icon.trim()
+          }
+        }
+      })
+      const merged = new Set([...defaultCategories, ...names])
+      categories.value = Array.from(merged)
+      categoryIcons.value = nextIcons
+    } else {
+      categories.value = [...defaultCategories]
+    }
   } catch {
-    // ignore
+    categories.value = [...defaultCategories]
+  }
+
+  if (!categories.value.includes(form.value.category)) {
+    form.value.category = categories.value[0] ?? '家庭'
   }
 }
 
@@ -200,7 +270,8 @@ const openCreate = () => {
     priority: priorities[1] ?? 'P2',
     startAt,
     endAt,
-    icon: resolveCategoryIcon(categories.value[0] ?? '家庭')
+    icon: resolveCategoryIcon(categories.value[0] ?? '家庭'),
+    ledgerMode: 'auto_complete'
   }
   modalOpen.value = true
 }
@@ -213,7 +284,8 @@ const openEdit = (task: Task) => {
     priority: task.priority,
     startAt: toDateTimeLocal(task.startAt),
     endAt: toDateTimeLocal(task.endAt),
-    icon: getTaskIcon(task)
+    icon: getTaskIcon(task),
+    ledgerMode: task.ledgerMode
   }
   modalOpen.value = true
 }
@@ -237,7 +309,12 @@ const fetchTasks = async () => {
         dueDate,
         rangeLabel: buildRangeLabel(startAt, endAt, dueDate),
         done: !!item.done,
-        icon: normalizeTaskIcon(item.icon, item.category)
+        icon: normalizeTaskIcon(item.icon, item.category),
+        ledgerMode: (item.ledger_mode ?? item.ledgerMode ?? 'auto_complete') as TaskLedgerMode,
+        familyShared: Boolean(item.family_shared ?? item.familyShared),
+        linkedRecordCount: Number(item.linked_record_count ?? item.linkedRecordCount ?? 0),
+        linkedExpenseTotal: Number(item.linked_expense_total ?? item.linkedExpenseTotal ?? 0),
+        linkedIncomeTotal: Number(item.linked_income_total ?? item.linkedIncomeTotal ?? 0)
       }
     })
     syncCategoriesFromTasks()
@@ -245,6 +322,20 @@ const fetchTasks = async () => {
     error.value = err?.message || '任务加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+const openLedgerDetail = async (task: Task) => {
+  detailOpen.value = true
+  detailLoading.value = true
+  detailData.value = null
+  try {
+    const data = await apiFetch<TaskLedgerDetail>(`/tasks/${task.id}/ledger-summary`)
+    detailData.value = data
+  } catch (err: any) {
+    pushToast(err?.message || '任务花费加载失败', 'error')
+  } finally {
+    detailLoading.value = false
   }
 }
 
@@ -275,6 +366,7 @@ const saveTask = async () => {
           priority: form.value.priority,
           start_at: toServerDateTime(form.value.startAt),
           end_at: toServerDateTime(form.value.endAt),
+          ledger_mode: form.value.ledgerMode,
           icon
         }
       })
@@ -289,6 +381,7 @@ const saveTask = async () => {
           priority: form.value.priority,
           start_at: toServerDateTime(form.value.startAt),
           end_at: toServerDateTime(form.value.endAt),
+          ledger_mode: form.value.ledgerMode,
           icon
         }
       })
@@ -396,12 +489,15 @@ onMounted(() => {
                 <span class="tag">{{ task.category }}</span>
                 <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
                 <span class="tag">{{ task.rangeLabel }}</span>
+                <span class="tag">{{ getLedgerModeLabel(task.ledgerMode) }}</span>
+                <span class="tag">已关联 {{ task.linkedRecordCount }} 笔 · 支出 ¥{{ formatAmount(task.linkedExpenseTotal) }}</span>
               </div>
             </div>
             <div class="task-actions">
               <span class="task-status task-pill" :class="task.done && 'done'">
                 {{ task.done ? '已完成' : '进行中' }}
               </span>
+              <button class="ghost task-pill" @click="openLedgerDetail(task)">花费</button>
               <button class="ghost task-pill" @click="openEdit(task)">编辑</button>
               <button class="ghost task-pill danger" @click="removeTask(task.id, $event)">删除</button>
             </div>
@@ -424,15 +520,24 @@ onMounted(() => {
             </label>
             <label>
               <span>分类</span>
-              <input v-model="form.category" list="task-categories" placeholder="选择或输入分类" />
-              <datalist id="task-categories">
-                <option v-for="item in categories" :key="item" :value="item" />
-              </datalist>
+              <select v-model="form.category">
+                <option v-for="item in categories" :key="item" :value="item">
+                  {{ item }}
+                </option>
+              </select>
             </label>
             <label>
               <span>优先级</span>
               <select v-model="form.priority">
                 <option v-for="item in priorities" :key="item" :value="item">{{ item }}</option>
+              </select>
+            </label>
+            <label>
+              <span>挂账模式</span>
+              <select v-model="form.ledgerMode">
+                <option v-for="item in ledgerModes" :key="item.value" :value="item.value">
+                  {{ item.label }}
+                </option>
               </select>
             </label>
             <label>
@@ -447,6 +552,66 @@ onMounted(() => {
           <div class="modal-actions">
             <button class="ghost" @click="modalOpen = false">取消</button>
             <button class="primary" @click="saveTask">保存</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="backdrop-fade">
+      <div v-if="detailOpen" class="modal-backdrop" @click.self="detailOpen = false">
+        <div class="modal task-ledger-modal">
+          <div class="modal-head">
+            <h3>任务花费</h3>
+            <button class="ghost" @click="detailOpen = false">关闭</button>
+          </div>
+          <div class="modal-body">
+            <div v-if="detailLoading" class="empty-state">加载中…</div>
+            <div v-else-if="detailData" class="task-ledger-body">
+              <div class="task-ledger-summary">
+                <div class="summary-title">{{ detailData.task?.title || '任务花费' }}</div>
+                <div class="summary-row">
+                  <span>关联 {{ detailData.summary.linked_record_count }} 笔</span>
+                  <span>支出 ¥{{ formatAmount(detailData.summary.linked_expense_total) }}</span>
+                  <span>收入 ¥{{ formatAmount(detailData.summary.linked_income_total) }}</span>
+                  <span>净支出 ¥{{ formatAmount(detailData.summary.net_expense_total) }}</span>
+                </div>
+              </div>
+
+              <div class="task-ledger-section">
+                <div class="section-title">成员花费</div>
+                <div class="task-ledger-list">
+                  <div v-for="item in detailData.members" :key="item.name" class="task-ledger-row">
+                    <span>{{ item.name }}</span>
+                    <span>支出 ¥{{ formatAmount(item.expense) }}</span>
+                    <span>收入 ¥{{ formatAmount(item.income) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="task-ledger-section">
+                <div class="section-title">分类汇总</div>
+                <div class="task-ledger-list">
+                  <div v-for="item in detailData.categories" :key="item.category" class="task-ledger-row">
+                    <span>{{ item.category }}</span>
+                    <span>支出 ¥{{ formatAmount(item.expense) }}</span>
+                    <span>收入 ¥{{ formatAmount(item.income) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="task-ledger-section">
+                <div class="section-title">关联流水</div>
+                <div class="task-ledger-list">
+                  <div v-for="item in detailData.records" :key="item.id" class="task-ledger-row">
+                    <span>{{ item.date }}</span>
+                    <span>{{ item.note || '记账记录' }}</span>
+                    <span>{{ item.category }}</span>
+                    <span>{{ item.type === 'income' ? '+' : '-' }}¥{{ formatAmount(item.amount) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="empty-state">暂无数据</div>
           </div>
         </div>
       </div>
@@ -481,7 +646,6 @@ onMounted(() => {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-
 .task-list-head {
   display: flex;
   align-items: center;
@@ -489,7 +653,6 @@ onMounted(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-
 
 .task-list-panel {
   display: grid;
@@ -500,6 +663,65 @@ onMounted(() => {
   display: grid;
   gap: 16px;
 }
+
+.task-ledger-modal {
+  width: min(860px, 92vw);
+}
+
+.task-ledger-body {
+  display: grid;
+  gap: 16px;
+}
+
+.task-ledger-summary {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.summary-title {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.task-ledger-section {
+  display: grid;
+  gap: 8px;
+}
+
+.task-ledger-section .section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.task-ledger-list {
+  display: grid;
+  gap: 8px;
+}
+
+.task-ledger-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+}
+
 @media (max-width: 720px) {
   .task-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -507,6 +729,9 @@ onMounted(() => {
   .task-date {
     width: 100%;
     justify-content: space-between;
+  }
+  .task-ledger-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
