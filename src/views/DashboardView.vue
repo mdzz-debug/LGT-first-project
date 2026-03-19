@@ -365,15 +365,7 @@ const reminderCount = computed(() => overview.value.todoCount || 0)
 
 
 const openCreate = () => {
-  editingId.value = null
-  form.value = {
-    title: '',
-    category: categories.value[0] ?? '家庭',
-    priority: priorities[1] ?? 'P2',
-    due: '',
-    icon: resolveCategoryIcon(categories.value[0] ?? '家庭')
-  }
-  modalOpen.value = true
+  router.push({ path: '/tasks', query: { create: '1' } })
 }
 
 
@@ -814,7 +806,14 @@ onUnmounted(() => {
             </label>
             <label>
               <span>截止</span>
-              <input v-model="form.due" placeholder="例如：今天 18:00" />
+              <el-date-picker
+                v-model="form.due"
+                type="date"
+                value-format="YYYY-MM-DD"
+                format="YYYY-MM-DD"
+                :clearable="false"
+                placeholder="选择日期"
+              />
             </label>
           </div>
           <div class="modal-actions">

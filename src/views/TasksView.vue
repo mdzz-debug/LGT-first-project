@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Icon, addCollection } from '@iconify/vue'
 import mdi from '@iconify-json/mdi/icons.json'
 import AppHeader from '../components/AppHeader.vue'
@@ -8,6 +9,9 @@ import { pushToast } from '../composables/useToast'
 import { useRecycleFly } from '../composables/useRecycleFly'
 
 addCollection(mdi)
+
+const router = useRouter()
+const route = useRoute()
 
 type TaskLedgerMode = 'auto_complete' | 'aggregate_cost'
 
@@ -110,7 +114,7 @@ const pad = (value: number) => String(value).padStart(2, '0')
 const toDateTimeLocal = (value?: string) => {
   if (!value) return ''
   const normalized = value.replace('T', ' ').trim()
-  return normalized.slice(0, 16).replace(' ', 'T')
+  return normalized.length === 16 ? `${normalized}:00` : normalized
 }
 const toServerDateTime = (value: string) => {
   const normalized = value.trim()
@@ -143,7 +147,7 @@ const buildDefaultRange = () => {
   const end = new Date()
   end.setHours(23, 59, 0, 0)
   const formatLocal = (d: Date) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
   return {
     startAt: formatLocal(now),
     endAt: formatLocal(end)
@@ -423,9 +427,15 @@ const removeTask = async (id: string | number, evt?: MouseEvent) => {
   }
 }
 
-onMounted(() => {
-  loadTaskCategories()
-  fetchTasks()
+onMounted(async () => {
+  await loadTaskCategories()
+  await fetchTasks()
+
+  if (route.query.create === '1') {
+    openCreate()
+    const { create, ...rest } = route.query
+    router.replace({ query: rest })
+  }
 })
 </script>
 
@@ -465,7 +475,14 @@ onMounted(() => {
             <div class="task-filters">
               <div class="task-date task-filter-date">
                 <span class="date-label">日期</span>
-                <input v-model="selectedDate" type="date" class="date-input" />
+                <el-date-picker
+                  v-model="selectedDate"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  format="YYYY-MM-DD"
+                  :clearable="false"
+                  class="date-input"
+                />
               </div>
               <select v-model="statusFilter" class="task-filter-status">
                 <option value="all">全部</option>
@@ -553,11 +570,23 @@ onMounted(() => {
             </label>
             <label>
               <span>开始</span>
-              <input v-model="form.startAt" type="datetime-local" />
+              <el-date-picker
+                v-model="form.startAt"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                format="YYYY-MM-DD HH:mm"
+                :clearable="false"
+              />
             </label>
             <label>
               <span>结束</span>
-              <input v-model="form.endAt" type="datetime-local" />
+              <el-date-picker
+                v-model="form.endAt"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                format="YYYY-MM-DD HH:mm"
+                :clearable="false"
+              />
             </label>
           </div>
           <div class="modal-actions">

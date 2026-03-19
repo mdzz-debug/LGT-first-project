@@ -810,7 +810,14 @@ onUnmounted(() => {
         <div class="task-tools">
           <div class="ledger-date task-date">
             <span class="date-label">日期</span>
-            <input v-model="selectedDate" type="date" class="date-input" />
+            <el-date-picker
+              v-model="selectedDate"
+              type="date"
+              value-format="YYYY-MM-DD"
+              format="YYYY-MM-DD"
+              :clearable="false"
+              class="date-input"
+            />
           </div>
           <select v-model="filterType" class="task-type">
             <option value="all">全部</option>
@@ -907,7 +914,13 @@ onUnmounted(() => {
               </label>
               <label>
                 <span>日期</span>
-                <input v-model="form.date" type="date" />
+                <el-date-picker
+                  v-model="form.date"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  format="YYYY-MM-DD"
+                  :clearable="false"
+                />
               </label>
               <label>
                 <span>备注</span>
