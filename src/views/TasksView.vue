@@ -11,6 +11,8 @@ addCollection(mdi)
 
 type TaskLedgerMode = 'auto_complete' | 'aggregate_cost'
 
+type TaskLedgerOption = 'none' | TaskLedgerMode
+
 type TaskLedgerSummary = {
   linked_record_count: number
   linked_expense_total: number
@@ -46,6 +48,7 @@ type Task = {
   dueDate: string
   done: boolean
   icon: string
+  ledgerEnabled: boolean
   ledgerMode: TaskLedgerMode
   familyShared?: boolean
   linkedRecordCount: number
@@ -56,7 +59,8 @@ type Task = {
 const defaultCategories = ['家庭', '工作', '健康', '学习']
 const categories = ref<string[]>([...defaultCategories])
 const priorities: Array<Task['priority']> = ['P1', 'P2', 'P3']
-const ledgerModes: Array<{ value: TaskLedgerMode; label: string }> = [
+const ledgerModes: Array<{ value: TaskLedgerOption; label: string }> = [
+  { value: 'none', label: '不挂账' },
   { value: 'auto_complete', label: '单次完成型' },
   { value: 'aggregate_cost', label: '多笔聚合型' }
 ]
@@ -193,7 +197,7 @@ const form = ref<{
   startAt: string
   endAt: string
   icon: string
-  ledgerMode: TaskLedgerMode
+  ledgerOption: TaskLedgerOption
 }>({
   title: '',
   category: categories.value[0] ?? '家庭',
@@ -201,7 +205,7 @@ const form = ref<{
   startAt: '',
   endAt: '',
   icon: resolveCategoryIcon(categories.value[0] ?? '家庭'),
-  ledgerMode: 'auto_complete'
+  ledgerOption: 'none'
 })
 
 const loadTaskCategories = async () => {
@@ -271,7 +275,7 @@ const openCreate = () => {
     startAt,
     endAt,
     icon: resolveCategoryIcon(categories.value[0] ?? '家庭'),
-    ledgerMode: 'auto_complete'
+    ledgerOption: 'none'
   }
   modalOpen.value = true
 }
@@ -285,7 +289,7 @@ const openEdit = (task: Task) => {
     startAt: toDateTimeLocal(task.startAt),
     endAt: toDateTimeLocal(task.endAt),
     icon: getTaskIcon(task),
-    ledgerMode: task.ledgerMode
+    ledgerOption: task.ledgerEnabled ? task.ledgerMode : 'none'
   }
   modalOpen.value = true
 }
@@ -310,6 +314,7 @@ const fetchTasks = async () => {
         rangeLabel: buildRangeLabel(startAt, endAt, dueDate),
         done: !!item.done,
         icon: normalizeTaskIcon(item.icon, item.category),
+        ledgerEnabled: Boolean(item.ledger_enabled ?? item.ledgerEnabled ?? 0),
         ledgerMode: (item.ledger_mode ?? item.ledgerMode ?? 'auto_complete') as TaskLedgerMode,
         familyShared: Boolean(item.family_shared ?? item.familyShared),
         linkedRecordCount: Number(item.linked_record_count ?? item.linkedRecordCount ?? 0),
@@ -358,6 +363,8 @@ const saveTask = async () => {
   try {
     if (editingId.value) {
       const icon = normalizeTaskIcon(form.value.icon, form.value.category)
+      const ledgerEnabled = form.value.ledgerOption !== 'none'
+      const ledgerMode = ledgerEnabled ? form.value.ledgerOption : 'auto_complete'
       await apiFetch(`/tasks/${editingId.value}`, {
         method: 'PATCH',
         body: {
@@ -366,13 +373,16 @@ const saveTask = async () => {
           priority: form.value.priority,
           start_at: toServerDateTime(form.value.startAt),
           end_at: toServerDateTime(form.value.endAt),
-          ledger_mode: form.value.ledgerMode,
+          ledger_enabled: ledgerEnabled ? 1 : 0,
+          ledger_mode: ledgerMode,
           icon
         }
       })
       pushToast('任务已更新', 'success')
     } else {
       const icon = normalizeTaskIcon(form.value.icon, form.value.category)
+      const ledgerEnabled = form.value.ledgerOption !== 'none'
+      const ledgerMode = ledgerEnabled ? form.value.ledgerOption : 'auto_complete'
       await apiFetch('/tasks', {
         method: 'POST',
         body: {
@@ -381,7 +391,8 @@ const saveTask = async () => {
           priority: form.value.priority,
           start_at: toServerDateTime(form.value.startAt),
           end_at: toServerDateTime(form.value.endAt),
-          ledger_mode: form.value.ledgerMode,
+          ledger_enabled: ledgerEnabled ? 1 : 0,
+          ledger_mode: ledgerMode,
           icon
         }
       })
@@ -489,7 +500,7 @@ onMounted(() => {
                 <span class="tag">{{ task.category }}</span>
                 <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
                 <span class="tag">{{ task.rangeLabel }}</span>
-                <span class="tag">{{ getLedgerModeLabel(task.ledgerMode) }}</span>
+                <span class="tag">{{ task.ledgerEnabled ? getLedgerModeLabel(task.ledgerMode) : '不挂账' }}</span>
                 <span class="tag">已关联 {{ task.linkedRecordCount }} 笔 · 支出 ¥{{ formatAmount(task.linkedExpenseTotal) }}</span>
               </div>
             </div>
@@ -533,8 +544,8 @@ onMounted(() => {
               </select>
             </label>
             <label>
-              <span>挂账模式</span>
-              <select v-model="form.ledgerMode">
+              <span>挂账</span>
+              <select v-model="form.ledgerOption">
                 <option v-for="item in ledgerModes" :key="item.value" :value="item.value">
                   {{ item.label }}
                 </option>
