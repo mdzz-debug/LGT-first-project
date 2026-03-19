@@ -51,6 +51,7 @@ type Task = {
   rangeLabel: string
   dueDate: string
   done: boolean
+  status: 0 | 1 | 2
   icon: string
   ledgerEnabled: boolean
   ledgerMode: TaskLedgerMode
@@ -179,13 +180,28 @@ const dailyTasks = computed(() =>
   })
 )
 
-const dailyCompleted = computed(() => dailyTasks.value.filter((t) => t.done).length)
-const dailyInProgress = computed(() => dailyTasks.value.filter((t) => !t.done).length)
+const getTaskStatus = (task: Task): 0 | 1 | 2 => {
+  if (task.done) return 1
+  if (task.status === 1) return 1
+  if (task.status === 2) return 2
+  return 0
+}
+
+const getTaskStatusLabel = (task: Task) => {
+  const status = getTaskStatus(task)
+  if (status === 1) return '已完成'
+  if (status === 2) return '逾期'
+  return '进行中'
+}
+
+const dailyCompleted = computed(() => dailyTasks.value.filter((t) => getTaskStatus(t) === 1).length)
+const dailyInProgress = computed(() => dailyTasks.value.filter((t) => getTaskStatus(t) === 0).length)
+const dailyOverdue = computed(() => dailyTasks.value.filter((t) => getTaskStatus(t) === 2).length)
 const loading = shallowRef(false)
 const error = shallowRef('')
 
 const query = ref('')
-const statusFilter = ref<'all' | 'todo' | 'done'>('all')
+const statusFilter = ref<'all' | 'todo' | 'done' | 'overdue'>('all')
 const priorityFilter = ref<'all' | Task['priority']>('all')
 const modalOpen = ref(false)
 const detailOpen = ref(false)
@@ -247,27 +263,23 @@ const loadTaskCategories = async () => {
 const filteredTasks = computed(() => {
   return dailyTasks.value.filter((task) => {
     const hitQuery = task.title.includes(query.value.trim())
+    const currentStatus = getTaskStatus(task)
     const hitStatus =
       statusFilter.value === 'all' ||
-      (statusFilter.value === 'done' ? task.done : !task.done)
+      (statusFilter.value === 'done' && currentStatus === 1) ||
+      (statusFilter.value === 'todo' && currentStatus === 0) ||
+      (statusFilter.value === 'overdue' && currentStatus === 2)
     const hitPriority =
       priorityFilter.value === 'all' || task.priority === priorityFilter.value
     return hitQuery && hitStatus && hitPriority
   })
 })
 
-const completed = computed(() => tasks.value.filter((t) => t.done).length)
+const completed = computed(() => tasks.value.filter((t) => getTaskStatus(t) === 1).length)
 const completion = computed(() =>
   tasks.value.length ? Math.round((completed.value / tasks.value.length) * 100) : 0
 )
-const overdue = computed(() => {
-  const today = toLocalDateKey(new Date())
-  return tasks.value.filter((t) => {
-    if (t.done) return false
-    const date = t.endAt ? t.endAt.slice(0, 10) : t.dueDate
-    return !!date && date < today
-  }).length
-})
+const overdue = computed(() => tasks.value.filter((t) => getTaskStatus(t) === 2).length)
 
 const openCreate = () => {
   editingId.value = null
@@ -307,6 +319,8 @@ const fetchTasks = async () => {
       const startAt = item.start_at || item.startAt
       const endAt = item.end_at || item.endAt
       const dueDate = item.due_date ?? item.due ?? ''
+      const statusRaw = Number(item.status ?? item.task_status ?? 0)
+      const status = statusRaw === 1 ? 1 : statusRaw === 2 ? 2 : 0
       return {
         id: item.id,
         title: item.title,
@@ -317,6 +331,7 @@ const fetchTasks = async () => {
         dueDate,
         rangeLabel: buildRangeLabel(startAt, endAt, dueDate),
         done: !!item.done,
+        status,
         icon: normalizeTaskIcon(item.icon, item.category),
         ledgerEnabled: Boolean(item.ledger_enabled ?? item.ledgerEnabled ?? 0),
         ledgerMode: (item.ledger_mode ?? item.ledgerMode ?? 'auto_complete') as TaskLedgerMode,
@@ -448,7 +463,7 @@ onMounted(async () => {
         <div class="task-board-head">
           <div>
             <h2>任务管理</h2>
-            <p class="muted">共 {{ dailyTasks.length }} 项 · 已完成 {{ dailyCompleted }} · 进行中 {{ dailyInProgress }}</p>
+            <p class="muted">共 {{ dailyTasks.length }} 项 · 已完成 {{ dailyCompleted }} · 进行中 {{ dailyInProgress }} · 逾期 {{ dailyOverdue }}</p>
           </div>
           <button class="primary task-pill" @click="openCreate">新建任务</button>
         </div>
@@ -488,6 +503,7 @@ onMounted(async () => {
                 <option value="all">全部</option>
                 <option value="todo">待办</option>
                 <option value="done">已完成</option>
+                <option value="overdue">逾期</option>
               </select>
               <div class="search task-filter-search">
                 <Icon icon="mdi:magnify" />
@@ -522,8 +538,14 @@ onMounted(async () => {
               </div>
             </div>
             <div class="task-actions">
-              <span class="task-status task-pill" :class="task.done && 'done'">
-                {{ task.done ? '已完成' : '进行中' }}
+              <span
+                class="task-status task-pill"
+                :class="{
+                  done: getTaskStatus(task) === 1,
+                  overdue: getTaskStatus(task) === 2
+                }"
+              >
+                {{ getTaskStatusLabel(task) }}
               </span>
               <button class="ghost task-pill" @click="openLedgerDetail(task)">花费</button>
               <button class="ghost task-pill" @click="openEdit(task)">编辑</button>
