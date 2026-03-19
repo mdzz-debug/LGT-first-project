@@ -673,6 +673,8 @@ onMounted(async () => {
 .task-date .date-label {
   font-size: 12px;
   color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .task-date .date-input {
@@ -680,6 +682,25 @@ onMounted(async () => {
   background: transparent;
   color: var(--text);
   font-size: 12px;
+  width: 136px;
+  flex: 1;
+  min-width: 0;
+}
+
+.task-date :deep(.el-input__wrapper) {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+}
+
+.task-date :deep(.el-input__inner) {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.task-date :deep(.el-input__prefix-inner) {
+  color: var(--text-muted);
 }
 
 .task-stat-grid {

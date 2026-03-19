@@ -1561,6 +1561,8 @@ onUnmounted(() => {
 .ledger-date .date-label {
   font-size: 12px;
   color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .ledger-date .date-input {
@@ -1568,6 +1570,24 @@ onUnmounted(() => {
   background: transparent;
   color: var(--text);
   font-size: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ledger-date :deep(.el-input__wrapper) {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+}
+
+.ledger-date :deep(.el-input__inner) {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.ledger-date :deep(.el-input__prefix-inner) {
+  color: var(--text-muted);
 }
 
 
