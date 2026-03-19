@@ -55,6 +55,9 @@ type Task = {
   icon: string
   ledgerEnabled: boolean
   ledgerMode: TaskLedgerMode
+  reminderEnabled: boolean
+  reminderMinutes: number
+  reminderStatus: 0 | 1 | 2 | 3
   familyShared?: boolean
   linkedRecordCount: number
   linkedExpenseTotal: number
@@ -69,6 +72,8 @@ const ledgerModes: Array<{ value: TaskLedgerOption; label: string }> = [
   { value: 'auto_complete', label: '单次完成型' },
   { value: 'aggregate_cost', label: '多笔聚合型' }
 ]
+
+const reminderMinuteOptions = [10, 15, 30, 45, 60, 90, 120]
 
 const defaultCategoryIcons: Record<string, string> = {
   家庭: 'mdi:home-heart',
@@ -194,6 +199,14 @@ const getTaskStatusLabel = (task: Task) => {
   return '进行中'
 }
 
+const getReminderStatusLabel = (task: Task) => {
+  if (!task.reminderEnabled) return '提醒关闭'
+  if (task.reminderStatus === 1) return '已提醒'
+  if (task.reminderStatus === 3) return '提醒失败'
+  if (task.reminderStatus === 0) return `待提醒（提前${task.reminderMinutes}分钟）`
+  return '无需提醒'
+}
+
 const dailyCompleted = computed(() => dailyTasks.value.filter((t) => getTaskStatus(t) === 1).length)
 const dailyInProgress = computed(() => dailyTasks.value.filter((t) => getTaskStatus(t) === 0).length)
 const dailyOverdue = computed(() => dailyTasks.value.filter((t) => getTaskStatus(t) === 2).length)
@@ -218,6 +231,8 @@ const form = ref<{
   endAt: string
   icon: string
   ledgerOption: TaskLedgerOption
+  reminderEnabled: boolean
+  reminderMinutes: number
 }>({
   title: '',
   category: categories.value[0] ?? '家庭',
@@ -225,7 +240,9 @@ const form = ref<{
   startAt: '',
   endAt: '',
   icon: resolveCategoryIcon(categories.value[0] ?? '家庭'),
-  ledgerOption: 'none'
+  ledgerOption: 'none',
+  reminderEnabled: false,
+  reminderMinutes: 60
 })
 
 const loadTaskCategories = async () => {
@@ -291,7 +308,9 @@ const openCreate = () => {
     startAt,
     endAt,
     icon: resolveCategoryIcon(categories.value[0] ?? '家庭'),
-    ledgerOption: 'none'
+    ledgerOption: 'none',
+    reminderEnabled: false,
+    reminderMinutes: 60
   }
   modalOpen.value = true
 }
@@ -305,7 +324,9 @@ const openEdit = (task: Task) => {
     startAt: toDateTimeLocal(task.startAt),
     endAt: toDateTimeLocal(task.endAt),
     icon: getTaskIcon(task),
-    ledgerOption: task.ledgerEnabled ? task.ledgerMode : 'none'
+    ledgerOption: task.ledgerEnabled ? task.ledgerMode : 'none',
+    reminderEnabled: task.reminderEnabled,
+    reminderMinutes: task.reminderMinutes || 60
   }
   modalOpen.value = true
 }
@@ -321,6 +342,9 @@ const fetchTasks = async () => {
       const dueDate = item.due_date ?? item.due ?? ''
       const statusRaw = Number(item.status ?? item.task_status ?? 0)
       const status = statusRaw === 1 ? 1 : statusRaw === 2 ? 2 : 0
+      const reminderStatusRaw = Number(item.reminder_status ?? item.reminderStatus ?? 2)
+      const reminderStatus =
+        reminderStatusRaw === 0 ? 0 : reminderStatusRaw === 1 ? 1 : reminderStatusRaw === 3 ? 3 : 2
       return {
         id: item.id,
         title: item.title,
@@ -335,6 +359,9 @@ const fetchTasks = async () => {
         icon: normalizeTaskIcon(item.icon, item.category),
         ledgerEnabled: Boolean(item.ledger_enabled ?? item.ledgerEnabled ?? 0),
         ledgerMode: (item.ledger_mode ?? item.ledgerMode ?? 'auto_complete') as TaskLedgerMode,
+        reminderEnabled: Boolean(item.reminder_enabled ?? item.reminderEnabled ?? 0),
+        reminderMinutes: Number(item.reminder_minutes ?? item.reminderMinutes ?? 60),
+        reminderStatus,
         familyShared: Boolean(item.family_shared ?? item.familyShared),
         linkedRecordCount: Number(item.linked_record_count ?? item.linkedRecordCount ?? 0),
         linkedExpenseTotal: Number(item.linked_expense_total ?? item.linkedExpenseTotal ?? 0),
@@ -380,49 +407,44 @@ const toggleDone = async (task: Task) => {
 const saveTask = async () => {
   if (!form.value.title.trim()) return
   try {
+    const icon = normalizeTaskIcon(form.value.icon, form.value.category)
+    const ledgerEnabled = form.value.ledgerOption !== 'none'
+    const ledgerMode = ledgerEnabled ? form.value.ledgerOption : 'auto_complete'
+    const reminderMinutes = Math.max(0, Number(form.value.reminderMinutes || 0))
+
+    const body = {
+      title: form.value.title,
+      category: form.value.category,
+      priority: form.value.priority,
+      start_at: toServerDateTime(form.value.startAt),
+      end_at: toServerDateTime(form.value.endAt),
+      ledger_enabled: ledgerEnabled ? 1 : 0,
+      ledger_mode: ledgerMode,
+      reminder_enabled: form.value.reminderEnabled ? 1 : 0,
+      reminder_minutes: reminderMinutes,
+      icon
+    }
+
     if (editingId.value) {
-      const icon = normalizeTaskIcon(form.value.icon, form.value.category)
-      const ledgerEnabled = form.value.ledgerOption !== 'none'
-      const ledgerMode = ledgerEnabled ? form.value.ledgerOption : 'auto_complete'
       await apiFetch(`/tasks/${editingId.value}`, {
         method: 'PATCH',
-        body: {
-          title: form.value.title,
-          category: form.value.category,
-          priority: form.value.priority,
-          start_at: toServerDateTime(form.value.startAt),
-          end_at: toServerDateTime(form.value.endAt),
-          ledger_enabled: ledgerEnabled ? 1 : 0,
-          ledger_mode: ledgerMode,
-          icon
-        }
+        body
       })
       pushToast('任务已更新', 'success')
     } else {
-      const icon = normalizeTaskIcon(form.value.icon, form.value.category)
-      const ledgerEnabled = form.value.ledgerOption !== 'none'
-      const ledgerMode = ledgerEnabled ? form.value.ledgerOption : 'auto_complete'
       await apiFetch('/tasks', {
         method: 'POST',
-        body: {
-          title: form.value.title,
-          category: form.value.category,
-          priority: form.value.priority,
-          start_at: toServerDateTime(form.value.startAt),
-          end_at: toServerDateTime(form.value.endAt),
-          ledger_enabled: ledgerEnabled ? 1 : 0,
-          ledger_mode: ledgerMode,
-          icon
-        }
+        body
       })
       pushToast('任务已创建', 'success')
     }
+
     await Promise.all([loadTaskCategories(), fetchTasks()])
     if (form.value.category) mergeCategories([form.value.category])
-  } catch {
-    pushToast('任务保存失败', 'error')
+    modalOpen.value = false
+  } catch (err: any) {
+    pushToast(err?.message || '任务保存失败', 'error')
   }
-  modalOpen.value = false
 }
 
 const removeTask = async (id: string | number, evt?: MouseEvent) => {
@@ -534,6 +556,7 @@ onMounted(async () => {
                 <span class="tag" :class="`priority-${task.priority}`">{{ task.priority }}</span>
                 <span class="tag">{{ task.rangeLabel }}</span>
                 <span class="tag">{{ task.ledgerEnabled ? getLedgerModeLabel(task.ledgerMode) : '不挂账' }}</span>
+                <span class="tag">{{ getReminderStatusLabel(task) }}</span>
                 <span class="tag">已关联 {{ task.linkedRecordCount }} 笔 · 支出 ¥{{ formatAmount(task.linkedExpenseTotal) }}</span>
               </div>
             </div>
@@ -609,6 +632,21 @@ onMounted(async () => {
                 format="YYYY-MM-DD HH:mm"
                 :clearable="false"
               />
+            </label>
+            <label>
+              <span>任务提醒</span>
+              <select v-model="form.reminderEnabled">
+                <option :value="false">不提醒</option>
+                <option :value="true">需要提醒</option>
+              </select>
+            </label>
+            <label v-if="form.reminderEnabled">
+              <span>提前提醒</span>
+              <select v-model.number="form.reminderMinutes">
+                <option v-for="minutes in reminderMinuteOptions" :key="minutes" :value="minutes">
+                  提前 {{ minutes }} 分钟
+                </option>
+              </select>
             </label>
           </div>
           <div class="modal-actions">
