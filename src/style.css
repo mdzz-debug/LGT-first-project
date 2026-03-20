@@ -994,13 +994,34 @@ select {
   color: var(--text-muted);
 }
 
-.modal-body input,
-.modal-body select {
+.modal-body > label > input,
+.modal-body > label > select,
+.modal-body > label > textarea {
   border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   background: var(--input-bg);
   color: var(--input-text);
   padding: 10px 12px;
+}
+
+.modal-body .el-date-editor.el-input {
+  width: 100%;
+}
+
+.modal-body .el-date-editor .el-input__wrapper {
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--input-bg);
+  box-shadow: none;
+  padding: 10px 12px;
+}
+
+.modal-body .el-date-editor .el-input__inner {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  color: var(--input-text);
 }
 
 .modal-actions {
